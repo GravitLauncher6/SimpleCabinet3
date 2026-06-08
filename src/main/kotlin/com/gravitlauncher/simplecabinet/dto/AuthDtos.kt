@@ -28,10 +28,16 @@ data class LoginRequest(
 
 data class AuthResponse(
     val token: String,
+    val refreshToken: String,
     val type: String = "Bearer",
     val username: String,
     val email: String,
     val role: String
+)
+
+data class RefreshTokenRequest(
+    @field:NotBlank(message = "Refresh token is required")
+    val refreshToken: String
 )
 
 data class UserResponse(

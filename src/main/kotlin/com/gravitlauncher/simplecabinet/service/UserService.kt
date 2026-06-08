@@ -18,7 +18,8 @@ class UserService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtUtil: JwtUtil,
     private val authenticationManager: AuthenticationManager,
-    private val customUserDetailsService: CustomUserDetailsService
+    private val customUserDetailsService: CustomUserDetailsService,
+    private val refreshTokenService: RefreshTokenService
 ) {
 
     @Transactional
@@ -43,15 +44,18 @@ class UserService(
 
         val savedUser = userRepository.save(user)
         val token = jwtUtil.generateToken(savedUser.username, savedUser.role.name)
+        val refreshToken = refreshTokenService.createRefreshToken(savedUser)
 
         return AuthResponse(
             token = token,
+            refreshToken = refreshToken.token,
             username = savedUser.username,
             email = savedUser.email,
             role = savedUser.role.name
         )
     }
 
+    @Transactional
     fun login(request: LoginRequest): AuthResponse {
         authenticationManager.authenticate(
             UsernamePasswordAuthenticationToken(request.username, request.password)
@@ -59,13 +63,43 @@ class UserService(
 
         val user = customUserDetailsService.loadUserEntityByUsername(request.username)
         val token = jwtUtil.generateToken(user.username, user.role.name)
+        val refreshToken = refreshTokenService.createRefreshToken(user)
 
         return AuthResponse(
             token = token,
+            refreshToken = refreshToken.token,
             username = user.username,
             email = user.email,
             role = user.role.name
         )
+    }
+
+    @Transactional
+    fun refreshToken(refreshTokenRequest: RefreshTokenRequest): AuthResponse {
+        val refreshToken = refreshTokenService.findByToken(refreshTokenRequest.refreshToken)
+            .orElseThrow { IllegalArgumentException("Refresh token not found") }
+
+        refreshTokenService.verifyExpiration(refreshToken)
+
+        if (refreshTokenService.isRevoked(refreshToken)) {
+            throw IllegalArgumentException("Refresh token has been revoked")
+        }
+
+        val user = refreshToken.user
+        val newAccessToken = jwtUtil.generateToken(user.username, user.role.name)
+
+        return AuthResponse(
+            token = newAccessToken,
+            refreshToken = refreshToken.token,
+            username = user.username,
+            email = user.email,
+            role = user.role.name
+        )
+    }
+
+    @Transactional
+    fun logout(refreshToken: String) {
+        refreshTokenService.revokeToken(refreshToken)
     }
 
     fun getAllUsers(): List<UserResponse> {
