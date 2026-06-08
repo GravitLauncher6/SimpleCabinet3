@@ -3,6 +3,9 @@ package com.gravitlauncher.simplecabinet.service
 import com.gravitlauncher.simplecabinet.entity.Permission
 import com.gravitlauncher.simplecabinet.entity.Role
 import com.gravitlauncher.simplecabinet.entity.User
+import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
+import com.gravitlauncher.simplecabinet.exception.ErrorCode
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.repository.PermissionRepository
 import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
@@ -25,18 +28,18 @@ class RoleService(
 
     fun getRoleById(id: Long): Role {
         return roleRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Role not found with id: $id") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.ROLE_NOT_FOUND, "Role not found with id: $id") }
     }
 
     fun getRoleByName(name: String): Role {
         return roleRepository.findByName(name)
-            .orElseThrow { NoSuchElementException("Role not found: $name") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.ROLE_NOT_FOUND, "Role not found: $name") }
     }
 
     @Transactional
     fun createRole(name: String, description: String?): Role {
         if (roleRepository.existsByName(name)) {
-            throw IllegalArgumentException("Role already exists: $name")
+            throw DuplicateResourceException(ErrorCode.ROLE_ALREADY_EXISTS, "Role already exists: $name")
         }
 
         val role = Role(
@@ -70,7 +73,7 @@ class RoleService(
     @Transactional
     fun assignRoleToUser(userId: Long, roleId: Long, expiresAt: LocalDateTime?): com.gravitlauncher.simplecabinet.entity.UserRole {
         val user = userRepository.findById(userId)
-            .orElseThrow { NoSuchElementException("User not found with id: $userId") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $userId") }
         val role = getRoleById(roleId)
 
         val userRole = com.gravitlauncher.simplecabinet.entity.UserRole(
@@ -90,13 +93,13 @@ class RoleService(
 
     fun getUserRoles(userId: Long): List<com.gravitlauncher.simplecabinet.entity.UserRole> {
         val user = userRepository.findById(userId)
-            .orElseThrow { NoSuchElementException("User not found with id: $userId") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $userId") }
         return userRoleRepository.findByUser(user)
     }
 
     fun getActiveUserRoles(userId: Long): List<com.gravitlauncher.simplecabinet.entity.UserRole> {
         val user = userRepository.findById(userId)
-            .orElseThrow { NoSuchElementException("User not found with id: $userId") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $userId") }
         return userRoleRepository.findActiveByUser(user, LocalDateTime.now())
     }
 

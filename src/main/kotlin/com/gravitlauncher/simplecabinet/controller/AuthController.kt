@@ -18,52 +18,26 @@ class AuthController(
 ) {
 
     @PostMapping("/register")
-    fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<Any> {
-        return try {
-            val response = userService.register(request)
-            ResponseEntity.status(HttpStatus.CREATED).body(response)
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(MessageResponse(e.message ?: "Registration failed"))
-        } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(MessageResponse("Internal server error"))
-        }
+    fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<AuthResponse> {
+        val response = userService.register(request)
+        return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 
     @PostMapping("/login")
-    fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<Any> {
-        return try {
-            val response = userService.login(request)
-            ResponseEntity.ok(response)
-        } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(MessageResponse("Invalid username or password"))
-        }
+    fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> {
+        val response = userService.login(request)
+        return ResponseEntity.ok(response)
     }
 
     @PostMapping("/refresh")
-    fun refreshToken(@Valid @RequestBody request: RefreshTokenRequest): ResponseEntity<Any> {
-        return try {
-            val response = userService.refreshToken(request)
-            ResponseEntity.ok(response)
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(MessageResponse(e.message ?: "Invalid refresh token"))
-        } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(MessageResponse("Internal server error"))
-        }
+    fun refreshToken(@Valid @RequestBody request: RefreshTokenRequest): ResponseEntity<AuthResponse> {
+        val response = userService.refreshToken(request)
+        return ResponseEntity.ok(response)
     }
 
     @PostMapping("/logout")
     fun logout(@Valid @RequestBody request: RefreshTokenRequest): ResponseEntity<MessageResponse> {
-        return try {
-            userService.logout(request.refreshToken)
-            ResponseEntity.ok(MessageResponse("Logged out successfully"))
-        } catch (e: Exception) {
-            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(MessageResponse("Logout failed"))
-        }
+        userService.logout(request.refreshToken)
+        return ResponseEntity.ok(MessageResponse("Logged out successfully"))
     }
 }

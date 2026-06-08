@@ -2,6 +2,8 @@ package com.gravitlauncher.simplecabinet.service
 
 import com.gravitlauncher.simplecabinet.entity.RefreshToken
 import com.gravitlauncher.simplecabinet.entity.User
+import com.gravitlauncher.simplecabinet.exception.ErrorCode
+import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.repository.RefreshTokenRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -34,7 +36,7 @@ class RefreshTokenService(
     fun verifyExpiration(token: RefreshToken): RefreshToken {
         if (token.expiryDate.isBefore(Instant.now())) {
             refreshTokenRepository.delete(token)
-            throw IllegalArgumentException("Refresh token was expired. Please make a new signin request")
+            throw InvalidInputException(ErrorCode.TOKEN_EXPIRED, "Refresh token was expired. Please make a new signin request")
         }
         return token
     }

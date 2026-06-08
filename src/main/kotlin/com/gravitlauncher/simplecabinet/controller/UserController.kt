@@ -25,38 +25,23 @@ class UserController(
 
     @GetMapping("/{id}")
     @RequireAuth
-    fun getUserById(@PathVariable id: Long): ResponseEntity<Any> {
-        return try {
-            val user = userService.getUserById(id)
-            ResponseEntity.ok(user)
-        } catch (e: NoSuchElementException) {
-            ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(MessageResponse(e.message ?: "User not found"))
-        }
+    fun getUserById(@PathVariable id: Long): ResponseEntity<UserResponse> {
+        val user = userService.getUserById(id)
+        return ResponseEntity.ok(user)
     }
 
     @GetMapping("/me")
     @RequireAuth
-    fun getCurrentUser(authentication: Authentication): ResponseEntity<Any> {
-        return try {
-            val username = authentication.name
-            val user = userService.getUserByUsername(username)
-            ResponseEntity.ok(user)
-        } catch (e: NoSuchElementException) {
-            ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(MessageResponse(e.message ?: "User not found"))
-        }
+    fun getCurrentUser(authentication: Authentication): ResponseEntity<UserResponse> {
+        val username = authentication.name
+        val user = userService.getUserByUsername(username)
+        return ResponseEntity.ok(user)
     }
 
     @DeleteMapping("/{id}")
     @RequirePermission("user.delete")
     fun deleteUser(@PathVariable id: Long): ResponseEntity<MessageResponse> {
-        return try {
-            userService.deleteUser(id)
-            ResponseEntity.ok(MessageResponse("User deleted successfully"))
-        } catch (e: NoSuchElementException) {
-            ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(MessageResponse(e.message ?: "User not found"))
-        }
+        userService.deleteUser(id)
+        return ResponseEntity.ok(MessageResponse("User deleted successfully"))
     }
 }

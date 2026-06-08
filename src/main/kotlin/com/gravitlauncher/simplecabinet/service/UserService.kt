@@ -2,6 +2,10 @@ package com.gravitlauncher.simplecabinet.service
 
 import com.gravitlauncher.simplecabinet.dto.*
 import com.gravitlauncher.simplecabinet.entity.User
+import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
+import com.gravitlauncher.simplecabinet.exception.ErrorCode
+import com.gravitlauncher.simplecabinet.exception.InvalidInputException
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
 import com.gravitlauncher.simplecabinet.repository.RoleRepository
@@ -28,11 +32,11 @@ class UserService(
     @Transactional
     fun register(request: RegisterRequest): AuthResponse {
         if (userRepository.existsByUsername(request.username)) {
-            throw IllegalArgumentException("Username already exists")
+            throw DuplicateResourceException(ErrorCode.USER_ALREADY_EXISTS, "Username already exists")
         }
 
         if (userRepository.existsByEmail(request.email)) {
-            throw IllegalArgumentException("Email already exists")
+            throw DuplicateResourceException(ErrorCode.USER_ALREADY_EXISTS, "Email already exists")
         }
 
         val user = User(
@@ -102,12 +106,12 @@ class UserService(
     @Transactional
     fun refreshToken(refreshTokenRequest: RefreshTokenRequest): AuthResponse {
         val refreshToken = refreshTokenService.findByToken(refreshTokenRequest.refreshToken)
-            .orElseThrow { IllegalArgumentException("Refresh token not found") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.TOKEN_NOT_FOUND, "Refresh token not found") }
 
         refreshTokenService.verifyExpiration(refreshToken)
 
         if (refreshTokenService.isRevoked(refreshToken)) {
-            throw IllegalArgumentException("Refresh token has been revoked")
+            throw InvalidInputException(ErrorCode.INVALID_TOKEN, "Refresh token has been revoked")
         }
 
         val user = refreshToken.user
@@ -149,7 +153,7 @@ class UserService(
 
     fun getUserById(id: Long): UserResponse {
         val user = userRepository.findById(id)
-            .orElseThrow { NoSuchElementException("User not found with id: $id") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $id") }
 
         val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
         val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
@@ -167,7 +171,7 @@ class UserService(
 
     fun getUserByUsername(username: String): UserResponse {
         val user = userRepository.findByUsername(username)
-            .orElseThrow { NoSuchElementException("User not found: $username") }
+            .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found: $username") }
 
         val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
         val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
@@ -186,7 +190,7 @@ class UserService(
     @Transactional
     fun deleteUser(id: Long) {
         if (!userRepository.existsById(id)) {
-            throw NoSuchElementException("User not found with id: $id")
+            throw ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $id")
         }
         userRepository.deleteById(id)
     }
