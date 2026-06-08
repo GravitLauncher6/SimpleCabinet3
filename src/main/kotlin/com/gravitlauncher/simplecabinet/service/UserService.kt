@@ -2,8 +2,9 @@ package com.gravitlauncher.simplecabinet.service
 
 import com.gravitlauncher.simplecabinet.dto.*
 import com.gravitlauncher.simplecabinet.entity.User
-import com.gravitlauncher.simplecabinet.entity.UserRole
 import com.gravitlauncher.simplecabinet.repository.UserRepository
+import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
+import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.security.JwtUtil
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
@@ -15,6 +16,8 @@ import java.time.LocalDateTime
 @Service
 class UserService(
     private val userRepository: UserRepository,
+    private val userRoleRepository: UserRoleRepository,
+    private val roleRepository: RoleRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtUtil: JwtUtil,
     private val authenticationManager: AuthenticationManager,
@@ -36,14 +39,33 @@ class UserService(
             username = request.username,
             email = request.email,
             password = passwordEncoder.encode(request.password) ?: "",
-            role = UserRole.USER,
             enabled = true,
             createdAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now()
         )
 
         val savedUser = userRepository.save(user)
-        val token = jwtUtil.generateToken(savedUser.username, savedUser.role.name)
+        
+        // Assign default USER role
+        val defaultRole = roleRepository.findByName("USER")
+            .orElseGet {
+                roleRepository.save(
+                    com.gravitlauncher.simplecabinet.entity.Role(
+                        name = "USER",
+                        description = "Default user role"
+                    )
+                )
+            }
+        
+        val userRole = com.gravitlauncher.simplecabinet.entity.UserRole(
+            user = savedUser,
+            role = defaultRole,
+            assignedAt = LocalDateTime.now()
+        )
+        savedUser.userRoles.add(userRole)
+        userRoleRepository.save(userRole)
+        
+        val token = jwtUtil.generateToken(savedUser.username, "USER")
         val refreshToken = refreshTokenService.createRefreshToken(savedUser)
 
         return AuthResponse(
@@ -51,7 +73,7 @@ class UserService(
             refreshToken = refreshToken.token,
             username = savedUser.username,
             email = savedUser.email,
-            role = savedUser.role.name
+            role = "USER"
         )
     }
 
@@ -62,7 +84,10 @@ class UserService(
         )
 
         val user = customUserDetailsService.loadUserEntityByUsername(request.username)
-        val token = jwtUtil.generateToken(user.username, user.role.name)
+        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
+        val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
+        
+        val token = jwtUtil.generateToken(user.username, primaryRole)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 
         return AuthResponse(
@@ -70,7 +95,7 @@ class UserService(
             refreshToken = refreshToken.token,
             username = user.username,
             email = user.email,
-            role = user.role.name
+            role = primaryRole
         )
     }
 
@@ -86,14 +111,17 @@ class UserService(
         }
 
         val user = refreshToken.user
-        val newAccessToken = jwtUtil.generateToken(user.username, user.role.name)
+        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
+        val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
+        
+        val newAccessToken = jwtUtil.generateToken(user.username, primaryRole)
 
         return AuthResponse(
             token = newAccessToken,
             refreshToken = refreshToken.token,
             username = user.username,
             email = user.email,
-            role = user.role.name
+            role = primaryRole
         )
     }
 
@@ -104,11 +132,14 @@ class UserService(
 
     fun getAllUsers(): List<UserResponse> {
         return userRepository.findAll().map { user ->
+            val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
+            val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
+            
             UserResponse(
                 id = user.id!!,
                 username = user.username,
                 email = user.email,
-                role = user.role.name,
+                role = roleNames.ifEmpty { "No roles" },
                 enabled = user.enabled,
                 createdAt = user.createdAt.toString(),
                 updatedAt = user.updatedAt.toString()
@@ -120,11 +151,14 @@ class UserService(
         val user = userRepository.findById(id)
             .orElseThrow { NoSuchElementException("User not found with id: $id") }
 
+        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
+        val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
+        
         return UserResponse(
             id = user.id!!,
             username = user.username,
             email = user.email,
-            role = user.role.name,
+            role = roleNames.ifEmpty { "No roles" },
             enabled = user.enabled,
             createdAt = user.createdAt.toString(),
             updatedAt = user.updatedAt.toString()
@@ -135,11 +169,14 @@ class UserService(
         val user = userRepository.findByUsername(username)
             .orElseThrow { NoSuchElementException("User not found: $username") }
 
+        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
+        val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
+        
         return UserResponse(
             id = user.id!!,
             username = user.username,
             email = user.email,
-            role = user.role.name,
+            role = roleNames.ifEmpty { "No roles" },
             enabled = user.enabled,
             createdAt = user.createdAt.toString(),
             updatedAt = user.updatedAt.toString()

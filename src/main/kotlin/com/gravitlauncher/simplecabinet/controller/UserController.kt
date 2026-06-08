@@ -1,29 +1,30 @@
 package com.gravitlauncher.simplecabinet.controller
 
+import com.gravitlauncher.simplecabinet.annotation.RequireAuth
+import com.gravitlauncher.simplecabinet.annotation.RequirePermission
 import com.gravitlauncher.simplecabinet.dto.MessageResponse
 import com.gravitlauncher.simplecabinet.dto.UserResponse
 import com.gravitlauncher.simplecabinet.service.UserService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/users")
 class UserController(
     private val userService: UserService
 ) {
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @RequireAuth
     fun getAllUsers(): ResponseEntity<List<UserResponse>> {
         val users = userService.getAllUsers()
         return ResponseEntity.ok(users)
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @RequireAuth
     fun getUserById(@PathVariable id: Long): ResponseEntity<Any> {
         return try {
             val user = userService.getUserById(id)
@@ -35,7 +36,7 @@ class UserController(
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @RequireAuth
     fun getCurrentUser(authentication: Authentication): ResponseEntity<Any> {
         return try {
             val username = authentication.name
@@ -48,7 +49,7 @@ class UserController(
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequirePermission("user.delete")
     fun deleteUser(@PathVariable id: Long): ResponseEntity<MessageResponse> {
         return try {
             userService.deleteUser(id)

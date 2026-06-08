@@ -19,9 +19,8 @@ data class User(
     @Column(nullable = false)
     val password: String,
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    val role: UserRole = UserRole.USER,
+    @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val userRoles: MutableList<UserRole> = mutableListOf(),
 
     @Column(nullable = false)
     val enabled: Boolean = true,
@@ -32,8 +31,3 @@ data class User(
     @Column(nullable = false)
     val updatedAt: LocalDateTime = LocalDateTime.now()
 )
-
-enum class UserRole {
-    USER,
-    ADMIN
-}
