@@ -25,12 +25,40 @@ class PermissionService(
         }
     }
 
+    /**
+     * Check if a permission key matches a permission pattern.
+     * Supports wildcard matching with *.
+     * 
+     * Examples:
+     * - "admin.*" matches "admin.create", "admin.delete", etc.
+     * - "user.profile.*" matches "user.profile.edit", "user.profile.view"
+     * - "admin.users.*.delete" matches "admin.users.123.delete", "admin.users.456.delete"
+     * - "*" matches everything
+     */
+    private fun matchesPermission(permissionPattern: String, requestedPermission: String): Boolean {
+        // Exact match
+        if (permissionPattern == requestedPermission) {
+            return true
+        }
+
+        // Wildcard match - convert to regex pattern
+        if (permissionPattern.contains("*")) {
+            val regexPattern = permissionPattern
+                .replace(".", "\\.")  // Escape dots
+                .replace("*", ".*")   // Convert * to .*
+            
+            return requestedPermission.matches(Regex("^$regexPattern$"))
+        }
+
+        return false
+    }
+
     fun hasPermission(user: User, permissionKey: String): Boolean {
         val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
         
         return activeRoles.any { userRole ->
             userRole.role.permissions.any { permission ->
-                permission.permissionKey == permissionKey
+                matchesPermission(permission.permissionKey, permissionKey)
             }
         }
     }
@@ -44,7 +72,9 @@ class PermissionService(
         val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
         
         for (userRole in activeRoles) {
-            val permission = userRole.role.permissions.find { it.permissionKey == permissionKey }
+            val permission = userRole.role.permissions.find { 
+                matchesPermission(it.permissionKey, permissionKey)
+            }
             if (permission != null) {
                 return permission.permissionValue
             }
