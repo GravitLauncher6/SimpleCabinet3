@@ -11,6 +11,7 @@ import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
 import com.gravitlauncher.simplecabinet.security.JwtUtil
+import com.gravitlauncher.simplecabinet.service.auth.ExternalAuthService
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -32,6 +33,7 @@ class UserServiceTest {
     private lateinit var authenticationManager: AuthenticationManager
     private lateinit var customUserDetailsService: CustomUserDetailsService
     private lateinit var sessionService: SessionService
+    private lateinit var externalAuthService: ExternalAuthService
     private lateinit var userService: UserService
 
     @BeforeEach
@@ -44,6 +46,7 @@ class UserServiceTest {
         authenticationManager = mock()
         customUserDetailsService = mock()
         sessionService = mock()
+        externalAuthService = mock()
 
         userService = UserService(
             userRepository,
@@ -53,7 +56,8 @@ class UserServiceTest {
             jwtUtil,
             authenticationManager,
             customUserDetailsService,
-            sessionService
+            sessionService,
+            externalAuthService
         )
     }
 
@@ -188,6 +192,7 @@ class UserServiceTest {
             expiresAt = java.time.Instant.now().plusMillis(604800000)
         )
 
+        whenever(userRepository.findByUsername(request.username)).thenReturn(Optional.of(user))
         whenever(customUserDetailsService.loadUserEntityByUsername(request.username)).thenReturn(user)
         whenever(userRoleRepository.findActiveByUser(any(), any())).thenReturn(listOf(userRole))
         whenever(jwtUtil.generateToken(user.username, "USER")).thenReturn("jwt-token")
@@ -213,6 +218,17 @@ class UserServiceTest {
             password = "wrongpassword"
         )
 
+        val user = User(
+            id = 1L,
+            username = request.username,
+            email = "test@example.com",
+            password = "encodedPassword",
+            enabled = true,
+            createdAt = LocalDateTime.now(),
+            updatedAt = LocalDateTime.now()
+        )
+
+        whenever(userRepository.findByUsername(request.username)).thenReturn(Optional.of(user))
         whenever(authenticationManager.authenticate(any())).thenThrow(BadCredentialsException::class.java)
 
         // Act & Assert

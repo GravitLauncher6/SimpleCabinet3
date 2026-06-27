@@ -2,24 +2,31 @@ package com.gravitlauncher.simplecabinet.security
 
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
+import java.security.PrivateKey
+import java.security.PublicKey
 import java.util.*
-import javax.crypto.SecretKey
 
 @Component
 class JwtUtil {
 
-    @Value("\${jwt.secret}")
-    private lateinit var secret: String
+    @Value("\${jwt.private-key}")
+    private lateinit var privateKeyString: String
+
+    @Value("\${jwt.public-key}")
+    private lateinit var publicKeyString: String
 
     @Value("\${jwt.expiration}")
     private var expiration: Long = 86400000
 
-    private fun getSigningKey(): SecretKey {
-        return Keys.hmacShaKeyFor(secret.toByteArray())
+    private fun getPrivateKey(): PrivateKey {
+        return EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
+    }
+
+    private fun getPublicKey(): PublicKey {
+        return EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
     }
 
     fun generateToken(username: String, role: String): String {
@@ -31,7 +38,7 @@ class JwtUtil {
             .subject(username)
             .issuedAt(Date())
             .expiration(Date(System.currentTimeMillis() + expiration))
-            .signWith(getSigningKey())
+            .signWith(getPrivateKey())
             .compact()
     }
 
@@ -54,7 +61,7 @@ class JwtUtil {
 
     private fun extractAllClaims(token: String): Claims {
         return Jwts.parser()
-            .verifyWith(getSigningKey())
+            .verifyWith(getPublicKey())
             .build()
             .parseSignedClaims(token)
             .payload

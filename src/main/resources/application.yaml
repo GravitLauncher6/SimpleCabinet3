@@ -23,7 +23,11 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
 
 jwt:
-  secret: your-secret-key-change-this-in-production-min-256-bits
+  # ECDSA keys for JWT signing
+  # Generate keys using: ./generate-jwt-keys.sh
+  # IMPORTANT: Replace these with your own generated keys in production!
+  private-key: MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgQZY8+mPIfCPtByxtnpNJgQx44nBMV81U+apiBgezHFqhRANCAAQgmOibzP8X0saXlGOnLZrhI72/DcTAOWbzFDH7e7iQSFDVS+vn+/CDl1w66CSwKvc4Sx2cW6ouDK2y0tcs5tiD
+  public-key: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIJjom8z/F9LGl5Rjpy2a4SO9vw3EwDlm8xQx+3u4kEhQ1Uvr5/vwg5dcOugksCr3OEsdnFuqLgytstLXLObYgw==
   expiration: 86400000
   session-expiration: 604800000
 

@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: simplecabinet-test
+
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.H2Dialect
+
+jwt:
+  private-key: MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg2Ehg0Vv0C8Ht4Hnke6/hm//qcfB3N9uQgq0THlTH2hihRANCAAScEubr30AbCtLtzTiaJk/7Y4Q4X945aubj08nHB+Fjd70D42fnc0TCUsCite4TqqaIatRjnAbiprB0aaNCDXG+
+  public-key: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIJjom8z/F9LGl5Rjpy2a4SO9vw3EwDlm8xQx+3u4kEhQ1Uvr5/vwg5dcOugksCr3OEsdnFuqLgytstLXLObYgw==
+  expiration: 86400000
+  session-expiration: 604800000
+
+storage:
+  type: LOCAL
+  local:
+    path: test-uploads
+    base-url: http://localhost:8080/files
