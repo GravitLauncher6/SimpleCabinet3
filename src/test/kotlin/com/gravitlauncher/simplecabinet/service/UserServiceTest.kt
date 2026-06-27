@@ -2,8 +2,11 @@ package com.gravitlauncher.simplecabinet.service
 
 import com.gravitlauncher.simplecabinet.dto.LoginRequest
 import com.gravitlauncher.simplecabinet.dto.RegisterRequest
+import com.gravitlauncher.simplecabinet.entity.Session
 import com.gravitlauncher.simplecabinet.entity.Role
 import com.gravitlauncher.simplecabinet.entity.User
+import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
@@ -28,7 +31,7 @@ class UserServiceTest {
     private lateinit var jwtUtil: JwtUtil
     private lateinit var authenticationManager: AuthenticationManager
     private lateinit var customUserDetailsService: CustomUserDetailsService
-    private lateinit var refreshTokenService: RefreshTokenService
+    private lateinit var sessionService: SessionService
     private lateinit var userService: UserService
 
     @BeforeEach
@@ -40,7 +43,7 @@ class UserServiceTest {
         jwtUtil = mock()
         authenticationManager = mock()
         customUserDetailsService = mock()
-        refreshTokenService = mock()
+        sessionService = mock()
 
         userService = UserService(
             userRepository,
@@ -50,7 +53,7 @@ class UserServiceTest {
             jwtUtil,
             authenticationManager,
             customUserDetailsService,
-            refreshTokenService
+            sessionService
         )
     }
 
@@ -81,11 +84,11 @@ class UserServiceTest {
             updatedAt = LocalDateTime.now()
         )
 
-        val refreshToken = com.gravitlauncher.simplecabinet.entity.RefreshToken(
+        val session = Session(
             id = 1L,
-            token = "refresh-token",
+            sessionToken = "session-token",
             user = savedUser,
-            expiryDate = java.time.Instant.now().plusMillis(604800000)
+            expiresAt = java.time.Instant.now().plusMillis(604800000)
         )
 
         whenever(userRepository.existsByUsername(request.username)).thenReturn(false)
@@ -94,7 +97,7 @@ class UserServiceTest {
         whenever(userRepository.save(any())).thenReturn(savedUser)
         whenever(roleRepository.findByName("USER")).thenReturn(Optional.of(defaultRole))
         whenever(jwtUtil.generateToken(savedUser.username, "USER")).thenReturn("jwt-token")
-        whenever(refreshTokenService.createRefreshToken(savedUser)).thenReturn(refreshToken)
+        whenever(sessionService.createSession(savedUser)).thenReturn(session)
 
         // Act
         val response = userService.register(request)
@@ -102,7 +105,7 @@ class UserServiceTest {
         // Assert
         assertNotNull(response)
         assertEquals("jwt-token", response.token)
-        assertEquals("refresh-token", response.refreshToken)
+        assertEquals("session-token", response.refreshToken)
         assertEquals("testuser", response.username)
         assertEquals("test@example.com", response.email)
         assertEquals("USER", response.role)
@@ -123,7 +126,7 @@ class UserServiceTest {
         whenever(userRepository.existsByUsername(request.username)).thenReturn(true)
 
         // Act & Assert
-        val exception = assertThrows<IllegalArgumentException> {
+        val exception = assertThrows<DuplicateResourceException> {
             userService.register(request)
         }
 
@@ -144,7 +147,7 @@ class UserServiceTest {
         whenever(userRepository.existsByEmail(request.email)).thenReturn(true)
 
         // Act & Assert
-        val exception = assertThrows<IllegalArgumentException> {
+        val exception = assertThrows<DuplicateResourceException> {
             userService.register(request)
         }
 
@@ -178,17 +181,17 @@ class UserServiceTest {
             assignedAt = LocalDateTime.now()
         )
 
-        val refreshToken = com.gravitlauncher.simplecabinet.entity.RefreshToken(
+        val session = Session(
             id = 1L,
-            token = "refresh-token",
+            sessionToken = "session-token",
             user = user,
-            expiryDate = java.time.Instant.now().plusMillis(604800000)
+            expiresAt = java.time.Instant.now().plusMillis(604800000)
         )
 
         whenever(customUserDetailsService.loadUserEntityByUsername(request.username)).thenReturn(user)
         whenever(userRoleRepository.findActiveByUser(any(), any())).thenReturn(listOf(userRole))
         whenever(jwtUtil.generateToken(user.username, "USER")).thenReturn("jwt-token")
-        whenever(refreshTokenService.createRefreshToken(user)).thenReturn(refreshToken)
+        whenever(sessionService.createSession(user)).thenReturn(session)
 
         // Act
         val response = userService.login(request)
@@ -196,7 +199,7 @@ class UserServiceTest {
         // Assert
         assertNotNull(response)
         assertEquals("jwt-token", response.token)
-        assertEquals("refresh-token", response.refreshToken)
+        assertEquals("session-token", response.refreshToken)
         assertEquals("testuser", response.username)
 
         verify(authenticationManager).authenticate(any())
@@ -238,7 +241,7 @@ class UserServiceTest {
         whenever(userRepository.existsById(userId)).thenReturn(false)
 
         // Act & Assert
-        val exception = assertThrows<NoSuchElementException> {
+        val exception = assertThrows<ResourceNotFoundException> {
             userService.deleteUser(userId)
         }
 

@@ -4,7 +4,6 @@ import com.gravitlauncher.simplecabinet.dto.*
 import com.gravitlauncher.simplecabinet.entity.User
 import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
 import com.gravitlauncher.simplecabinet.exception.ErrorCode
-import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
@@ -26,7 +25,7 @@ class UserService(
     private val jwtUtil: JwtUtil,
     private val authenticationManager: AuthenticationManager,
     private val customUserDetailsService: CustomUserDetailsService,
-    private val refreshTokenService: RefreshTokenService
+    private val sessionService: SessionService
 ) {
 
     @Transactional
@@ -70,11 +69,11 @@ class UserService(
         userRoleRepository.save(userRole)
         
         val token = jwtUtil.generateToken(savedUser.username, "USER")
-        val refreshToken = refreshTokenService.createRefreshToken(savedUser)
+        val session = sessionService.createSession(savedUser)
 
         return AuthResponse(
             token = token,
-            refreshToken = refreshToken.token,
+            refreshToken = session.sessionToken,
             username = savedUser.username,
             email = savedUser.email,
             role = "USER"
@@ -92,11 +91,11 @@ class UserService(
         val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
         
         val token = jwtUtil.generateToken(user.username, primaryRole)
-        val refreshToken = refreshTokenService.createRefreshToken(user)
+        val session = sessionService.createSession(user)
 
         return AuthResponse(
             token = token,
-            refreshToken = refreshToken.token,
+            refreshToken = session.sessionToken,
             username = user.username,
             email = user.email,
             role = primaryRole
@@ -105,16 +104,13 @@ class UserService(
 
     @Transactional
     fun refreshToken(refreshTokenRequest: RefreshTokenRequest): AuthResponse {
-        val refreshToken = refreshTokenService.findByToken(refreshTokenRequest.refreshToken)
-            .orElseThrow { ResourceNotFoundException(ErrorCode.TOKEN_NOT_FOUND, "Refresh token not found") }
+        val session = sessionService.findByToken(refreshTokenRequest.refreshToken)
+            .orElseThrow { ResourceNotFoundException(ErrorCode.TOKEN_NOT_FOUND, "Session not found") }
 
-        refreshTokenService.verifyExpiration(refreshToken)
+        sessionService.verifySession(session)
+        sessionService.updateLastAccessed(session.sessionToken)
 
-        if (refreshTokenService.isRevoked(refreshToken)) {
-            throw InvalidInputException(ErrorCode.INVALID_TOKEN, "Refresh token has been revoked")
-        }
-
-        val user = refreshToken.user
+        val user = session.user
         val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
         val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
         
@@ -122,7 +118,7 @@ class UserService(
 
         return AuthResponse(
             token = newAccessToken,
-            refreshToken = refreshToken.token,
+            refreshToken = session.sessionToken,
             username = user.username,
             email = user.email,
             role = primaryRole
@@ -131,7 +127,7 @@ class UserService(
 
     @Transactional
     fun logout(refreshToken: String) {
-        refreshTokenService.revokeToken(refreshToken)
+        sessionService.revokeSession(refreshToken)
     }
 
     fun getAllUsers(): List<UserResponse> {

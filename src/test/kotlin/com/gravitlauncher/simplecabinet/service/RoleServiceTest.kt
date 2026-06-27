@@ -4,6 +4,8 @@ import com.gravitlauncher.simplecabinet.entity.Permission
 import com.gravitlauncher.simplecabinet.entity.Role
 import com.gravitlauncher.simplecabinet.entity.User
 import com.gravitlauncher.simplecabinet.entity.UserRole
+import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.repository.PermissionRepository
 import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
@@ -73,7 +75,7 @@ class RoleServiceTest {
         whenever(roleRepository.existsByName(roleName)).thenReturn(true)
 
         // Act & Assert
-        val exception = assertThrows<IllegalArgumentException> {
+        val exception = assertThrows<DuplicateResourceException> {
             roleService.createRole(roleName, "Admin role")
         }
 
@@ -151,7 +153,7 @@ class RoleServiceTest {
         whenever(roleRepository.findById(roleId)).thenReturn(Optional.empty())
 
         // Act & Assert
-        assertThrows<NoSuchElementException> {
+        assertThrows<ResourceNotFoundException> {
             roleService.addPermissionToRole(roleId, "user.profile", null)
         }
 
@@ -259,7 +261,7 @@ class RoleServiceTest {
         whenever(userRepository.findById(userId)).thenReturn(Optional.empty())
 
         // Act & Assert
-        assertThrows<NoSuchElementException> {
+        assertThrows<ResourceNotFoundException> {
             roleService.assignRoleToUser(userId, roleId, null)
         }
 
@@ -286,7 +288,7 @@ class RoleServiceTest {
         whenever(roleRepository.findById(roleId)).thenReturn(Optional.empty())
 
         // Act & Assert
-        assertThrows<NoSuchElementException> {
+        assertThrows<ResourceNotFoundException> {
             roleService.assignRoleToUser(userId, roleId, null)
         }
 
@@ -333,7 +335,7 @@ class RoleServiceTest {
         whenever(roleRepository.findByName(roleName)).thenReturn(Optional.empty())
 
         // Act & Assert
-        assertThrows<NoSuchElementException> {
+        assertThrows<ResourceNotFoundException> {
             roleService.getRoleByName(roleName)
         }
     }
