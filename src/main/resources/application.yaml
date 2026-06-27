@@ -26,3 +26,22 @@ jwt:
   secret: your-secret-key-change-this-in-production-min-256-bits
   expiration: 86400000
   session-expiration: 604800000
+
+# Storage configuration
+storage:
+  # Type of storage: LOCAL or S3
+  type: LOCAL
+  
+  # Local file storage configuration
+  local:
+    path: uploads
+    base-url: http://localhost:8080/files
+  
+  # S3 storage configuration (for S3-compatible services like AWS S3, MinIO, etc.)
+  s3:
+    access-key: your-access-key
+    secret-key: your-secret-key
+    region: us-east-1
+    bucket: your-bucket-name
+    prefix: ""  # Optional prefix for all files
+    endpoint: ""  # Optional custom endpoint for S3-compatible services (e.g., http://localhost:9000 for MinIO)
