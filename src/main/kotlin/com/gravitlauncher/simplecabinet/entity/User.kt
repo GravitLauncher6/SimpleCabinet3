@@ -19,6 +19,10 @@ data class User(
     @Column(nullable = false)
     val password: String,
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    val userType: UserType = UserType.LOCAL,
+
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
     val userRoles: MutableList<UserRole> = mutableListOf(),
 
@@ -31,3 +35,8 @@ data class User(
     @Column(nullable = false)
     val updatedAt: LocalDateTime = LocalDateTime.now()
 )
+
+enum class UserType {
+    LOCAL,    // User managed locally in this system
+    EXTERNAL  // User managed by external system
+}
