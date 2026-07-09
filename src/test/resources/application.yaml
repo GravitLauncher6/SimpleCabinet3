@@ -18,7 +18,7 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
 
 jwt:
-  private-key: MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg2Ehg0Vv0C8Ht4Hnke6/hm//qcfB3N9uQgq0THlTH2hihRANCAAScEubr30AbCtLtzTiaJk/7Y4Q4X945aubj08nHB+Fjd70D42fnc0TCUsCite4TqqaIatRjnAbiprB0aaNCDXG+
+  private-key: MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgQZY8+mPIfCPtByxtnpNJgQx44nBMV81U+apiBgezHFqhRANCAAQgmOibzP8X0saXlGOnLZrhI72/DcTAOWbzFDH7e7iQSFDVS+vn+/CDl1w66CSwKvc4Sx2cW6ouDK2y0tcs5tiD
   public-key: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIJjom8z/F9LGl5Rjpy2a4SO9vw3EwDlm8xQx+3u4kEhQ1Uvr5/vwg5dcOugksCr3OEsdnFuqLgytstLXLObYgw==
   expiration: 86400000
   session-expiration: 604800000
@@ -26,5 +26,5 @@ jwt:
 storage:
   type: LOCAL
   local:
-    path: test-uploads
+    path: ${java.io.tmpdir}/simplecabinet-test-uploads
     base-url: http://localhost:8080/files

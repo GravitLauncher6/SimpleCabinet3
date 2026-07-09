@@ -1,0 +1,40 @@
+package com.gravitlauncher.simplecabinet.entity
+
+import jakarta.persistence.*
+import java.time.Instant
+
+@Entity
+@Table(name = "artifact_builds", uniqueConstraints = [
+    UniqueConstraint(name = "uk_artifact_build_variant", columnNames = ["variant"])
+], indexes = [
+    Index(name = "idx_artifact_build_deprecated", columnList = "deprecated")
+])
+data class ArtifactBuild(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    val id: Long? = null,
+
+    @Column(nullable = false, length = 255)
+    val variant: String,
+
+    @Column(nullable = false, length = 1024)
+    val storageKey: String,
+
+    @Column(nullable = false, length = 2048)
+    val url: String,
+
+    @Column(nullable = false, length = 255)
+    val originalFilename: String,
+
+    @Column(nullable = false)
+    val sizeBytes: Long,
+
+    @Column(nullable = false)
+    val deprecated: Boolean = false,
+
+    @Column(nullable = false)
+    val createdAt: Instant = Instant.now(),
+
+    @Column(nullable = false)
+    val updatedAt: Instant = Instant.now()
+)

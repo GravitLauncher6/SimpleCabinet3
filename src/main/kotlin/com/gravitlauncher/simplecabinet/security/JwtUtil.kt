@@ -2,6 +2,7 @@ package com.gravitlauncher.simplecabinet.security
 
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
+import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
@@ -21,12 +22,21 @@ class JwtUtil {
     @Value("\${jwt.expiration}")
     private var expiration: Long = 86400000
 
+    private lateinit var privateKey: PrivateKey
+    private lateinit var publicKey: PublicKey
+
+    @PostConstruct
+    fun initKeys() {
+        privateKey = EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
+        publicKey = EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
+    }
+
     private fun getPrivateKey(): PrivateKey {
-        return EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
+        return privateKey
     }
 
     private fun getPublicKey(): PublicKey {
-        return EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
+        return publicKey
     }
 
     fun generateToken(username: String, role: String): String {

@@ -1,0 +1,194 @@
+package com.gravitlauncher.simplecabinet.service
+
+import com.gravitlauncher.simplecabinet.dto.ArtifactUpdatePrepareResponse
+import com.gravitlauncher.simplecabinet.dto.ArtifactUpdateVerifyRequest
+import com.gravitlauncher.simplecabinet.dto.ArtifactUpdateVerifyResponse
+import com.gravitlauncher.simplecabinet.dto.ArtifactUploadResponse
+import com.gravitlauncher.simplecabinet.entity.ArtifactBuild
+import com.gravitlauncher.simplecabinet.exception.ErrorCode
+import com.gravitlauncher.simplecabinet.exception.InvalidInputException
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
+import com.gravitlauncher.simplecabinet.repository.ArtifactBuildRepository
+import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
+import io.jsonwebtoken.Claims
+import io.jsonwebtoken.Jwts
+import jakarta.annotation.PostConstruct
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.multipart.MultipartFile
+import java.security.PrivateKey
+import java.security.PublicKey
+import java.security.Signature
+import java.time.Instant
+import java.util.Base64
+import java.util.Date
+import java.util.UUID
+
+@Service
+class ArtifactUpdateService(
+    private val artifactBuildRepository: ArtifactBuildRepository,
+    private val storageService: com.gravitlauncher.simplecabinet.service.storage.StorageService
+) {
+
+    @Value("\${jwt.private-key}")
+    private lateinit var privateKeyString: String
+
+    @Value("\${jwt.public-key}")
+    private lateinit var publicKeyString: String
+
+    @Value("\${jwt.expiration}")
+    private var expiration: Long = 86400000
+
+    private lateinit var privateKey: PrivateKey
+    private lateinit var publicKey: PublicKey
+
+    @PostConstruct
+    fun initKeys() {
+        privateKey = EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
+        publicKey = EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
+    }
+
+    fun prepare(): ArtifactUpdatePrepareResponse {
+        val challengeBytes = ByteArray(32)
+        java.security.SecureRandom().nextBytes(challengeBytes)
+        val challenge = Base64.getEncoder().encodeToString(challengeBytes)
+        val token = Jwts.builder()
+            .subject("artifact-update-prepare")
+            .claim("type", "artifact-update-prepare")
+            .claim("challenge", challenge)
+            .issuedAt(Date())
+            .expiration(Date(System.currentTimeMillis() + expiration))
+            .signWith(privateKey)
+            .compact()
+
+        return ArtifactUpdatePrepareResponse(challenge = challenge, token = token)
+    }
+
+    @Transactional(readOnly = true)
+    fun verify(request: ArtifactUpdateVerifyRequest): ArtifactUpdateVerifyResponse {
+        val variant = request.variant.trim()
+        if (variant.isEmpty()) {
+            throw InvalidInputException(message = "Variant is required")
+        }
+
+        val claims = parseAndValidatePrepareToken(request.token)
+        val challenge = claims["challenge"] as? String
+            ?: throw InvalidInputException(message = "Prepare token missing challenge")
+
+        if (!verifySignature(challenge, request.signature)) {
+            throw InvalidInputException(message = "Invalid signature")
+        }
+
+        val build = artifactBuildRepository.findByVariant(variant)
+            .orElseThrow {
+                ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "Artifact build not found for variant: $variant")
+            }
+
+        return if (build.deprecated) {
+            ArtifactUpdateVerifyResponse(updateRequired = true, url = build.url)
+        } else {
+            ArtifactUpdateVerifyResponse(
+                updateRequired = false,
+                verifiedToken = Jwts.builder()
+                    .subject("artifact-update-verified")
+                    .claim("type", "artifact-update-verified")
+                    .claim("variant", variant)
+                    .claim("challenge", challenge)
+                    .issuedAt(Date())
+                    .expiration(Date(System.currentTimeMillis() + expiration))
+                    .signWith(privateKey)
+                    .compact()
+            )
+        }
+    }
+
+    @Transactional
+    fun upload(variant: String, file: MultipartFile, deprecated: Boolean): ArtifactUploadResponse {
+        val normalizedVariant = variant.trim()
+        if (normalizedVariant.isEmpty()) {
+            throw InvalidInputException(message = "Variant is required")
+        }
+        if (file.isEmpty) {
+            throw InvalidInputException(message = "File is required")
+        }
+
+        val originalFilename = file.originalFilename?.substringAfterLast('/')?.substringAfterLast('\\')?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "artifact.bin"
+        val storageKey = buildStorageKey(normalizedVariant, originalFilename)
+
+        val uploadedStorageKey = file.inputStream.use { inputStream ->
+            storageService.upload(storageKey, inputStream, file.contentType)
+        }
+        val url = storageService.getUrl(uploadedStorageKey)
+        val now = Instant.now()
+
+        val saved = artifactBuildRepository.findByVariant(normalizedVariant)
+            .map {
+                it.copy(
+                    storageKey = uploadedStorageKey,
+                    url = url,
+                    originalFilename = originalFilename,
+                    sizeBytes = file.size,
+                    deprecated = deprecated,
+                    updatedAt = now
+                )
+            }
+            .orElse(
+                ArtifactBuild(
+                    variant = normalizedVariant,
+                    storageKey = uploadedStorageKey,
+                    url = url,
+                    originalFilename = originalFilename,
+                    sizeBytes = file.size,
+                    deprecated = deprecated,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+
+        val persisted = artifactBuildRepository.save(saved)
+        return ArtifactUploadResponse(
+            variant = persisted.variant,
+            storageKey = persisted.storageKey,
+            url = persisted.url,
+            deprecated = persisted.deprecated
+        )
+    }
+
+    private fun buildStorageKey(variant: String, originalFilename: String): String {
+        val safeVariant = variant.replace(Regex("[^a-zA-Z0-9._/-]"), "_")
+        val safeFilename = originalFilename.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        return "artifacts/$safeVariant/${UUID.randomUUID()}-$safeFilename"
+    }
+
+    private fun parseAndValidatePrepareToken(token: String): Claims {
+        val claims = Jwts.parser()
+            .verifyWith(publicKey)
+            .build()
+            .parseSignedClaims(token)
+            .payload
+
+        if (claims.subject != "artifact-update-prepare" || claims["type"] != "artifact-update-prepare") {
+            throw InvalidInputException(message = "Invalid prepare token")
+        }
+
+        return claims
+    }
+
+    private fun verifySignature(challenge: String, signature: String): Boolean {
+        return try {
+            val verifier = Signature.getInstance("SHA256withECDSA")
+            verifier.initVerify(getPublicKey())
+            verifier.update(challenge.toByteArray(Charsets.UTF_8))
+            verifier.verify(Base64.getDecoder().decode(signature))
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun getPublicKey(): PublicKey {
+        return publicKey
+    }
+}
