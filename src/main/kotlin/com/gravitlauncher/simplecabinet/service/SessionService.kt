@@ -96,6 +96,24 @@ class SessionService(
         return sessionRepository.save(updatedSession)
     }
 
+    @Transactional
+    fun bindServer(sessionToken: String, serverId: String): Session {
+        val session = findByToken(sessionToken)
+            .orElseThrow { ResourceNotFoundException(ErrorCode.TOKEN_NOT_FOUND, "Session not found") }
+
+        verifySession(session)
+
+        val updatedSession = session.copy(
+            serverId = serverId,
+            lastAccessedAt = Instant.now()
+        )
+        return sessionRepository.save(updatedSession)
+    }
+
+    fun findByUserAndServerId(userId: Long, serverId: String): Optional<Session> {
+        return sessionRepository.findByUserIdAndServerId(userId, serverId)
+    }
+
     /**
      * Revoke a specific session
      */

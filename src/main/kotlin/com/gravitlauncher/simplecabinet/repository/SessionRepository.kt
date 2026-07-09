@@ -12,6 +12,7 @@ import java.util.*
 @Repository
 interface SessionRepository : JpaRepository<Session, Long> {
     fun findBySessionToken(sessionToken: String): Optional<Session>
+    fun findByUserIdAndServerId(userId: Long, serverId: String): Optional<Session>
     
     fun findByUser(user: User): List<Session>
     

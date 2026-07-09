@@ -39,6 +39,9 @@ data class Session(
     @Column(length = 50)
     val deviceType: String? = null,
 
+    @Column(length = 255)
+    val serverId: String? = null,
+
     @Column(nullable = false)
     var revoked: Boolean = false,
 
