@@ -63,7 +63,7 @@ class S3StorageService(
                 s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes))
             }
 
-            return key
+            return filename
         } catch (e: Exception) {
             throw RuntimeException("Failed to upload file to S3: ${e.message}", e)
         }
@@ -72,11 +72,7 @@ class S3StorageService(
     override fun exists(filename: String): Boolean {
         try {
             val bucket = storageProperties.s3.bucket
-            val key = if (storageProperties.s3.prefix.isNotEmpty()) {
-                "${storageProperties.s3.prefix}/$filename"
-            } else {
-                filename
-            }
+            val key = resolveKey(filename)
 
             val headObjectRequest = HeadObjectRequest.builder()
                 .bucket(bucket)
@@ -94,11 +90,7 @@ class S3StorageService(
 
     override fun getUrl(filename: String): String {
         val bucket = storageProperties.s3.bucket
-        val key = if (storageProperties.s3.prefix.isNotEmpty()) {
-            "${storageProperties.s3.prefix}/$filename"
-        } else {
-            filename
-        }
+        val key = resolveKey(filename)
 
         return if (storageProperties.s3.endpoint.isNotEmpty()) {
             // Custom endpoint (e.g., MinIO)
@@ -108,5 +100,10 @@ class S3StorageService(
             // Standard AWS S3 URL
             "https://$bucket.s3.${storageProperties.s3.region}.amazonaws.com/$key"
         }
+    }
+
+    private fun resolveKey(filename: String): String {
+        val prefix = storageProperties.s3.prefix.trim('/')
+        return if (prefix.isNotEmpty() && !filename.startsWith("$prefix/")) "$prefix/$filename" else filename
     }
 }

@@ -1,21 +1,33 @@
 package com.gravitlauncher.simplecabinet.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gravitlauncher.simplecabinet.dto.*
+import com.gravitlauncher.simplecabinet.entity.Blob
 import com.gravitlauncher.simplecabinet.entity.Session
 import com.gravitlauncher.simplecabinet.entity.User
+import com.gravitlauncher.simplecabinet.entity.UserAsset
+import com.gravitlauncher.simplecabinet.entity.UserAssetType
 import com.gravitlauncher.simplecabinet.exception.ErrorCode
 import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.exception.UnauthorizedException
+import com.gravitlauncher.simplecabinet.repository.BlobRepository
+import com.gravitlauncher.simplecabinet.repository.UserAssetRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
+import com.gravitlauncher.simplecabinet.service.storage.StorageService
 import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.PublicKey
@@ -26,12 +38,17 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.UUID
+import javax.imageio.ImageIO
 
 @Service
 class MinecraftService(
     private val sessionService: SessionService,
     private val userRepository: UserRepository,
-    private val permissionService: PermissionService
+    private val permissionService: PermissionService,
+    private val userAssetRepository: UserAssetRepository,
+    private val blobRepository: BlobRepository,
+    private val storageService: StorageService,
+    private val objectMapper: ObjectMapper = jacksonObjectMapper()
 ) {
 
     @Value("\${jwt.private-key}")
@@ -52,6 +69,63 @@ class MinecraftService(
     @Transactional(readOnly = true)
     fun getProfile(): MinecraftProfileResponse {
         return toMinecraftProfile(resolveCurrentUser())
+    }
+
+    @Transactional
+    fun uploadSkin(variant: String, file: MultipartFile): MinecraftProfileResponse {
+        val normalizedVariant = variant.trim().uppercase()
+        if (normalizedVariant !in setOf("CLASSIC", "SLIM")) {
+            throw InvalidInputException(message = "variant must be classic or slim")
+        }
+        val user = resolveCurrentUser()
+        val blob = storeTexture(file, UserAssetType.SKIN)
+        deactivateAssets(user, UserAssetType.SKIN)
+        userAssetRepository.save(
+            UserAsset(user = user, blob = blob, type = UserAssetType.SKIN, variant = normalizedVariant)
+        )
+        return toMinecraftProfile(user)
+    }
+
+    @Transactional
+    fun resetSkin(): MinecraftProfileResponse {
+        val user = resolveCurrentUser()
+        deactivateAssets(user, UserAssetType.SKIN)
+        return toMinecraftProfile(user)
+    }
+
+    @Transactional
+    fun uploadCape(alias: String?, file: MultipartFile): MinecraftProfileResponse {
+        val user = resolveCurrentUser()
+        val blob = storeTexture(file, UserAssetType.CAPE)
+        val normalizedAlias = alias?.trim()?.takeIf { it.isNotEmpty() }
+            ?: file.originalFilename?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotEmpty() }
+            ?: "Custom Cape"
+        if (normalizedAlias.length > 64) {
+            throw InvalidInputException(message = "Cape alias must not exceed 64 characters")
+        }
+        deactivateAssets(user, UserAssetType.CAPE)
+        userAssetRepository.save(
+            UserAsset(user = user, blob = blob, type = UserAssetType.CAPE, alias = normalizedAlias)
+        )
+        return toMinecraftProfile(user)
+    }
+
+    @Transactional
+    fun hideCape(): MinecraftProfileResponse {
+        val user = resolveCurrentUser()
+        deactivateAssets(user, UserAssetType.CAPE)
+        return toMinecraftProfile(user)
+    }
+
+    @Transactional
+    fun activateCape(capeId: String): MinecraftProfileResponse {
+        val user = resolveCurrentUser()
+        val userId = user.id ?: error("user id missing")
+        val cape = userAssetRepository.findByAssetIdAndUserIdAndType(capeId.trim(), userId, UserAssetType.CAPE)
+            .orElseThrow { InvalidInputException(message = "profile does not own cape") }
+        deactivateAssets(user, UserAssetType.CAPE)
+        userAssetRepository.save(cape.copy(active = true, updatedAt = Instant.now()))
+        return toMinecraftProfile(user)
     }
 
     @Transactional(readOnly = true)
@@ -304,9 +378,26 @@ class MinecraftService(
     }
 
     private fun toMinecraftProfile(user: User): MinecraftProfileResponse {
+        val assets = userAssetRepository.findAllByUserIdOrderByCreatedAtDesc(user.id ?: error("user id missing"))
         return MinecraftProfileResponse(
             id = profileId(user),
-            name = user.username
+            name = user.username,
+            skins = assets.filter { it.type == UserAssetType.SKIN }.map {
+                MinecraftSkinResponse(
+                    id = it.assetId,
+                    state = if (it.active) "ACTIVE" else "INACTIVE",
+                    url = storageService.getUrl(it.blob.storageKey),
+                    variant = it.variant ?: "CLASSIC"
+                )
+            },
+            capes = assets.filter { it.type == UserAssetType.CAPE }.map {
+                MinecraftCapeResponse(
+                    id = it.assetId,
+                    state = if (it.active) "ACTIVE" else "INACTIVE",
+                    url = storageService.getUrl(it.blob.storageKey),
+                    alias = it.alias ?: "Custom Cape"
+                )
+            }
         )
     }
 
@@ -318,9 +409,30 @@ class MinecraftService(
     }
 
     private fun toSessionProfile(user: User, includeSignature: Boolean): MinecraftSessionProfileResponse {
-        val texturesJson = """
-            {"timestamp":${System.currentTimeMillis()},"profileId":"${profileId(user)}","profileName":"${user.username}","textures":{}}
-        """.trimIndent()
+        val userId = user.id ?: error("user id missing")
+        val skin = activeAsset(userId, UserAssetType.SKIN)
+        val cape = activeAsset(userId, UserAssetType.CAPE)
+        val textures = linkedMapOf<String, Any>()
+        if (skin != null) {
+            val skinTexture = linkedMapOf<String, Any>("url" to storageService.getUrl(skin.blob.storageKey))
+            if (skin.variant == "SLIM") {
+                skinTexture["metadata"] = mapOf("model" to "slim")
+            }
+            textures["SKIN"] = skinTexture
+        }
+        if (cape != null) {
+            textures["CAPE"] = mapOf("url" to storageService.getUrl(cape.blob.storageKey))
+        }
+        val texturePayload = linkedMapOf<String, Any>(
+            "timestamp" to System.currentTimeMillis(),
+            "profileId" to profileId(user),
+            "profileName" to user.username,
+            "textures" to textures
+        )
+        if (includeSignature) {
+            texturePayload["signatureRequired"] = true
+        }
+        val texturesJson = objectMapper.writeValueAsString(texturePayload)
         val value = Base64.getEncoder().encodeToString(texturesJson.toByteArray(StandardCharsets.UTF_8))
         val property = MinecraftSessionPropertyResponse(
             name = "textures",
@@ -351,6 +463,55 @@ class MinecraftService(
             throw InvalidInputException(message = "Not a valid UUID: $profileId")
         }
         return normalized
+    }
+
+    private fun storeTexture(file: MultipartFile, type: UserAssetType): Blob {
+        if (file.isEmpty) {
+            throw InvalidInputException(message = "Texture file is required")
+        }
+        if (file.size > MAX_TEXTURE_SIZE) {
+            throw InvalidInputException(message = "Texture file must not exceed 2 MiB")
+        }
+        val bytes = file.bytes
+        if (bytes.size < PNG_SIGNATURE.size || !bytes.copyOfRange(0, PNG_SIGNATURE.size).contentEquals(PNG_SIGNATURE)) {
+            throw InvalidInputException(message = "Texture must be a valid PNG image")
+        }
+        val image = try {
+            ImageIO.read(ByteArrayInputStream(bytes))
+        } catch (_: Exception) {
+            null
+        } ?: throw InvalidInputException(message = "Texture must be a valid PNG image")
+
+        val dimensionsValid = when (type) {
+            UserAssetType.SKIN -> image.width == 64 && image.height in setOf(32, 64)
+            UserAssetType.CAPE -> image.width == 64 && image.height == 32
+        }
+        if (!dimensionsValid) {
+            val expected = if (type == UserAssetType.SKIN) "64x64 or 64x32" else "64x32"
+            throw InvalidInputException(message = "${type.name.lowercase()} texture dimensions must be $expected")
+        }
+
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val hash = "sha256:$digest"
+        return blobRepository.findByHash(hash).orElseGet {
+            val requestedKey = "blobs/sha256/${digest.take(2)}/$digest.png"
+            val storageKey = storageService.upload(requestedKey, ByteArrayInputStream(bytes), MediaType.IMAGE_PNG_VALUE)
+            blobRepository.save(
+                Blob(hash = hash, algorithm = "SHA-256", sizeBytes = bytes.size.toLong(), storageKey = storageKey)
+            )
+        }
+    }
+
+    private fun deactivateAssets(user: User, type: UserAssetType) {
+        val assets = userAssetRepository.findAllByUserIdAndTypeAndActiveTrue(user.id ?: error("user id missing"), type)
+        if (assets.isNotEmpty()) {
+            val now = Instant.now()
+            userAssetRepository.saveAll(assets.map { it.copy(active = false, updatedAt = now) })
+        }
+    }
+
+    private fun activeAsset(userId: Long, type: UserAssetType): UserAsset? {
+        return userAssetRepository.findAllByUserIdAndTypeAndActiveTrue(userId, type).firstOrNull()
     }
 
     private fun sign(bytes: ByteArray): String {
@@ -409,5 +570,12 @@ class MinecraftService(
     private fun pem(type: String, der: ByteArray): String {
         val encoded = Base64.getMimeEncoder(64, "\n".toByteArray()).encodeToString(der)
         return "-----BEGIN $type-----\n$encoded\n-----END $type-----"
+    }
+
+    companion object {
+        private const val MAX_TEXTURE_SIZE = 2 * 1024 * 1024L
+        private val PNG_SIGNATURE = byteArrayOf(
+            0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+        )
     }
 }

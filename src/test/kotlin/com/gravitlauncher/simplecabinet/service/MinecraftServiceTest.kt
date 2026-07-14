@@ -1,5 +1,7 @@
 package com.gravitlauncher.simplecabinet.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gravitlauncher.simplecabinet.dto.LoginRequest
 import com.gravitlauncher.simplecabinet.dto.MinecraftJoinRequest
 import com.gravitlauncher.simplecabinet.dto.MinecraftPlayerAttributesUpdateRequest
@@ -14,6 +16,11 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.mock.web.MockMultipartFile
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import java.util.Base64
+import javax.imageio.ImageIO
 
 @SpringBootTest
 class MinecraftServiceTest {
@@ -23,6 +30,8 @@ class MinecraftServiceTest {
 
     @Autowired
     private lateinit var minecraftService: MinecraftService
+
+    private val objectMapper: ObjectMapper = jacksonObjectMapper()
 
     @Test
     fun `should return minecraft profile and attributes for session token`() {
@@ -91,11 +100,67 @@ class MinecraftServiceTest {
         assertFalse(response.profanityFilterPreferences.profanityFilterOn)
     }
 
+    @Test
+    fun `should upload skin and cape and include them in session textures`() {
+        userService.register(
+            RegisterRequest(
+                username = "textures",
+                email = "textures@example.com",
+                password = "password123"
+            )
+        )
+        authenticate("textures")
+
+        val skinProfile = minecraftService.uploadSkin("slim", pngFile("skin.png", 64, 64))
+        val capeProfile = minecraftService.uploadCape("Founder", pngFile("cape.png", 64, 32))
+
+        assertEquals(1, skinProfile.skins.size)
+        assertEquals("SLIM", skinProfile.skins.single().variant)
+        assertEquals("ACTIVE", skinProfile.skins.single().state)
+        assertEquals(1, capeProfile.capes.size)
+        assertEquals("Founder", capeProfile.capes.single().alias)
+        assertEquals("ACTIVE", capeProfile.capes.single().state)
+
+        val sessionProfile = minecraftService.getSessionProfile(capeProfile.id, unsigned = false)
+        val decoded = Base64.getDecoder().decode(sessionProfile.properties.single().value)
+        val textures = objectMapper.readTree(decoded).path("textures")
+        assertEquals("slim", textures.path("SKIN").path("metadata").path("model").asText())
+        assertEquals(skinProfile.skins.single().url, textures.path("SKIN").path("url").asText())
+        assertEquals(capeProfile.capes.single().url, textures.path("CAPE").path("url").asText())
+        assertNotNull(sessionProfile.properties.single().signature)
+    }
+
+    @Test
+    fun `should retain cape history when hiding and reactivating cape`() {
+        userService.register(
+            RegisterRequest(
+                username = "capes",
+                email = "capes@example.com",
+                password = "password123"
+            )
+        )
+        authenticate("capes")
+
+        val uploaded = minecraftService.uploadCape("Test Cape", pngFile("cape.png", 64, 32))
+        val capeId = uploaded.capes.single().id
+        val hidden = minecraftService.hideCape()
+        val activated = minecraftService.activateCape(capeId)
+
+        assertEquals("INACTIVE", hidden.capes.single().state)
+        assertEquals("ACTIVE", activated.capes.single().state)
+    }
+
     private fun authenticate(username: String) {
         SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
             username,
             null,
             emptyList()
         )
+    }
+
+    private fun pngFile(filename: String, width: Int, height: Int): MockMultipartFile {
+        val output = ByteArrayOutputStream()
+        ImageIO.write(BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB), "png", output)
+        return MockMultipartFile("file", filename, "image/png", output.toByteArray())
     }
 }

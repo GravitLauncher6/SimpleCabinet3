@@ -26,6 +26,9 @@ data class User(
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
     val userRoles: MutableList<UserRole> = mutableListOf(),
 
+    @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val assets: MutableList<UserAsset> = mutableListOf(),
+
     @Column(nullable = false)
     val enabled: Boolean = true,
 

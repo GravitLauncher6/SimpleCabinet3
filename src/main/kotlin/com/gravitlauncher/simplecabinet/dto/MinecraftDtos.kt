@@ -21,6 +21,10 @@ data class MinecraftCapeResponse(
     val alias: String
 )
 
+data class MinecraftCapeActivationRequest(
+    val capeId: String
+)
+
 data class MinecraftLookupProfileResponse(
     val id: String,
     val name: String

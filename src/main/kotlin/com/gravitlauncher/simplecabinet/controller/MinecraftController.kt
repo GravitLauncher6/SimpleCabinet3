@@ -7,6 +7,7 @@ import jakarta.validation.Valid
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
 
 @RestController
 @RequestMapping("/minecraft")
@@ -18,6 +19,44 @@ class MinecraftController(
     @RequireAuth
     fun getProfile(): ResponseEntity<MinecraftProfileResponse> {
         return ResponseEntity.ok(minecraftService.getProfile())
+    }
+
+    @PostMapping("/profile/skins", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @RequireAuth
+    fun uploadSkin(
+        @RequestParam variant: String,
+        @RequestPart("file") file: MultipartFile
+    ): ResponseEntity<MinecraftProfileResponse> {
+        return ResponseEntity.ok(minecraftService.uploadSkin(variant, file))
+    }
+
+    @DeleteMapping("/profile/skins/active")
+    @RequireAuth
+    fun resetSkin(): ResponseEntity<MinecraftProfileResponse> {
+        return ResponseEntity.ok(minecraftService.resetSkin())
+    }
+
+    @PostMapping("/profile/capes", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @RequireAuth
+    fun uploadCape(
+        @RequestParam(required = false) alias: String?,
+        @RequestPart("file") file: MultipartFile
+    ): ResponseEntity<MinecraftProfileResponse> {
+        return ResponseEntity.ok(minecraftService.uploadCape(alias, file))
+    }
+
+    @DeleteMapping("/profile/capes/active")
+    @RequireAuth
+    fun hideCape(): ResponseEntity<MinecraftProfileResponse> {
+        return ResponseEntity.ok(minecraftService.hideCape())
+    }
+
+    @PutMapping("/profile/capes/active")
+    @RequireAuth
+    fun activateCape(
+        @RequestBody request: MinecraftCapeActivationRequest
+    ): ResponseEntity<MinecraftProfileResponse> {
+        return ResponseEntity.ok(minecraftService.activateCape(request.capeId))
     }
 
     @GetMapping("/profile/lookup/name/{name}")
