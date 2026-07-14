@@ -7,7 +7,8 @@ import java.time.Instant
 @Table(name = "artifact_builds", uniqueConstraints = [
     UniqueConstraint(name = "uk_artifact_build_variant", columnNames = ["variant"])
 ], indexes = [
-    Index(name = "idx_artifact_build_deprecated", columnList = "deprecated")
+    Index(name = "idx_artifact_build_deprecated", columnList = "deprecated"),
+    Index(name = "idx_artifact_build_public_key", columnList = "public_key")
 ])
 data class ArtifactBuild(
     @Id
@@ -28,6 +29,12 @@ data class ArtifactBuild(
 
     @Column(nullable = false)
     val sizeBytes: Long,
+
+    @Column(name = "public_key", nullable = false, unique = true, length = 4096)
+    val publicKey: String,
+
+    @Column(name = "private_key", nullable = false, length = 4096)
+    val privateKey: String,
 
     @Column(nullable = false)
     val deprecated: Boolean = false,

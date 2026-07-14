@@ -37,9 +37,11 @@ class ArtifactUpdateController(
     fun upload(
         @RequestParam @NotBlank variant: String,
         @RequestPart("file") file: MultipartFile,
+        @RequestPart("publicKey") publicKey: MultipartFile,
+        @RequestPart("privateKey") privateKey: MultipartFile,
         @RequestParam(defaultValue = "false") deprecated: Boolean
     ): ResponseEntity<ArtifactUploadResponse> {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(artifactUpdateService.upload(variant, file, deprecated))
+            .body(artifactUpdateService.upload(variant, file, publicKey, privateKey, deprecated))
     }
 }

@@ -67,22 +67,20 @@ class ArtifactUpdateService(
 
     @Transactional(readOnly = true)
     fun verify(request: ArtifactUpdateVerifyRequest): ArtifactUpdateVerifyResponse {
-        val variant = request.variant.trim()
-        if (variant.isEmpty()) {
-            throw InvalidInputException(message = "Variant is required")
-        }
+        val publicKeyString = normalizeKey(request.publicKey, "Public key")
+        val updatePublicKey = loadPublicKey(publicKeyString)
 
         val claims = parseAndValidatePrepareToken(request.token)
         val challenge = claims["challenge"] as? String
             ?: throw InvalidInputException(message = "Prepare token missing challenge")
 
-        if (!verifySignature(challenge, request.signature)) {
+        if (!verifySignature(challenge, request.signature, updatePublicKey)) {
             throw InvalidInputException(message = "Invalid signature")
         }
 
-        val build = artifactBuildRepository.findByVariant(variant)
+        val build = artifactBuildRepository.findByPublicKey(publicKeyString)
             .orElseThrow {
-                ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "Artifact build not found for variant: $variant")
+                ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "Artifact build not found for public key")
             }
 
         return if (build.deprecated) {
@@ -93,7 +91,7 @@ class ArtifactUpdateService(
                 verifiedToken = Jwts.builder()
                     .subject("artifact-update-verified")
                     .claim("type", "artifact-update-verified")
-                    .claim("variant", variant)
+                    .claim("variant", build.variant)
                     .claim("challenge", challenge)
                     .issuedAt(Date())
                     .expiration(Date(System.currentTimeMillis() + expiration))
@@ -104,7 +102,13 @@ class ArtifactUpdateService(
     }
 
     @Transactional
-    fun upload(variant: String, file: MultipartFile, deprecated: Boolean): ArtifactUploadResponse {
+    fun upload(
+        variant: String,
+        file: MultipartFile,
+        publicKeyFile: MultipartFile,
+        privateKeyFile: MultipartFile,
+        deprecated: Boolean
+    ): ArtifactUploadResponse {
         val normalizedVariant = variant.trim()
         if (normalizedVariant.isEmpty()) {
             throw InvalidInputException(message = "Variant is required")
@@ -112,6 +116,10 @@ class ArtifactUpdateService(
         if (file.isEmpty) {
             throw InvalidInputException(message = "File is required")
         }
+
+        val publicKeyString = readKey(publicKeyFile, "Public key")
+        val privateKeyString = readKey(privateKeyFile, "Private key")
+        validateKeyPair(publicKeyString, privateKeyString)
 
         val originalFilename = file.originalFilename?.substringAfterLast('/')?.substringAfterLast('\\')?.trim()
             ?.takeIf { it.isNotEmpty() }
@@ -131,6 +139,8 @@ class ArtifactUpdateService(
                     url = url,
                     originalFilename = originalFilename,
                     sizeBytes = file.size,
+                    publicKey = publicKeyString,
+                    privateKey = privateKeyString,
                     deprecated = deprecated,
                     updatedAt = now
                 )
@@ -142,6 +152,8 @@ class ArtifactUpdateService(
                     url = url,
                     originalFilename = originalFilename,
                     sizeBytes = file.size,
+                    publicKey = publicKeyString,
+                    privateKey = privateKeyString,
                     deprecated = deprecated,
                     createdAt = now,
                     updatedAt = now
@@ -177,10 +189,10 @@ class ArtifactUpdateService(
         return claims
     }
 
-    private fun verifySignature(challenge: String, signature: String): Boolean {
+    private fun verifySignature(challenge: String, signature: String, updatePublicKey: PublicKey): Boolean {
         return try {
             val verifier = Signature.getInstance("SHA256withECDSA")
-            verifier.initVerify(getPublicKey())
+            verifier.initVerify(updatePublicKey)
             verifier.update(challenge.toByteArray(Charsets.UTF_8))
             verifier.verify(Base64.getDecoder().decode(signature))
         } catch (_: Exception) {
@@ -188,7 +200,60 @@ class ArtifactUpdateService(
         }
     }
 
-    private fun getPublicKey(): PublicKey {
-        return publicKey
+    private fun readKey(file: MultipartFile, name: String): String {
+        if (file.isEmpty) {
+            throw InvalidInputException(message = "$name is required")
+        }
+        if (file.size > MAX_KEY_FILE_SIZE) {
+            throw InvalidInputException(message = "$name is too large")
+        }
+        return normalizeKey(String(file.bytes, Charsets.UTF_8), name)
+    }
+
+    private fun normalizeKey(value: String, name: String): String {
+        val normalized = value.trim()
+        if (normalized.isEmpty()) {
+            throw InvalidInputException(message = "$name is required")
+        }
+        return normalized
+    }
+
+    private fun loadPublicKey(value: String): PublicKey {
+        return try {
+            EcdsaKeyUtil.loadPublicKeyFromString(value)
+        } catch (_: Exception) {
+            throw InvalidInputException(message = "Invalid public key")
+        }
+    }
+
+    private fun validateKeyPair(publicKeyString: String, privateKeyString: String) {
+        val updatePublicKey = loadPublicKey(publicKeyString)
+        val updatePrivateKey = try {
+            EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
+        } catch (_: Exception) {
+            throw InvalidInputException(message = "Invalid private key")
+        }
+
+        try {
+            val proof = "artifact-update-key-pair".toByteArray(Charsets.UTF_8)
+            val signer = Signature.getInstance("SHA256withECDSA")
+            signer.initSign(updatePrivateKey)
+            signer.update(proof)
+
+            val verifier = Signature.getInstance("SHA256withECDSA")
+            verifier.initVerify(updatePublicKey)
+            verifier.update(proof)
+            if (!verifier.verify(signer.sign())) {
+                throw InvalidInputException(message = "Public and private keys do not match")
+            }
+        } catch (exception: InvalidInputException) {
+            throw exception
+        } catch (_: Exception) {
+            throw InvalidInputException(message = "Invalid update key pair")
+        }
+    }
+
+    companion object {
+        private const val MAX_KEY_FILE_SIZE = 16 * 1024L
     }
 }

@@ -6,7 +6,7 @@ data class ArtifactUpdatePrepareResponse(
 )
 
 data class ArtifactUpdateVerifyRequest(
-    val variant: String,
+    val publicKey: String,
     val signature: String,
     val token: String
 )
