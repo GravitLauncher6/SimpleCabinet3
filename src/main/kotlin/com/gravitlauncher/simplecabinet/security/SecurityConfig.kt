@@ -31,13 +31,13 @@ class SecurityConfig(
             .csrf { it.disable() }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/api/artifact-updates/prepare").permitAll()
-                    .requestMatchers("/api/artifact-updates/verify").permitAll()
+                    .requestMatchers("/auth/**").permitAll()
+                    .requestMatchers("/updates/prepare").permitAll()
+                    .requestMatchers("/updates/verify").permitAll()
                     .requestMatchers("/minecraft/**").permitAll()
                     .requestMatchers("/h2-console/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/users/**").hasAnyRole("USER", "ADMIN")
-                    .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN")
+                    .requestMatchers(HttpMethod.GET, "/users/**").hasAnyRole("USER", "ADMIN")
+                    .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
                     .anyRequest().authenticated()
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }

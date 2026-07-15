@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 
 @RestController
-@RequestMapping("/api/artifact-updates")
+@RequestMapping("/updates")
 @Validated
 class ArtifactUpdateController(
     private val artifactUpdateService: ArtifactUpdateService
