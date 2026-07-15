@@ -3,7 +3,13 @@ package com.gravitlauncher.simplecabinet.entity
 import jakarta.persistence.*
 
 @Entity
-@Table(name = "permissions")
+@Table(
+    name = "permissions",
+    indexes = [
+        Index(name = "idx_permission_role", columnList = "role_id"),
+        Index(name = "idx_permission_key", columnList = "permission_key")
+    ]
+)
 data class Permission(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -13,9 +19,9 @@ data class Permission(
     @JoinColumn(name = "role_id", nullable = false)
     val role: Role,
 
-    @Column(nullable = false)
+    @Column(name = "permission_key", nullable = false)
     val permissionKey: String,
 
-    @Column(length = 1000)
+    @Column(name = "permission_value", length = 1000)
     val permissionValue: String? = null
 )

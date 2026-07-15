@@ -4,7 +4,10 @@ import jakarta.persistence.*
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "roles")
+@Table(
+    name = "roles",
+    indexes = [Index(name = "idx_role_parent", columnList = "parent_role_id")]
+)
 data class Role(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -15,6 +18,10 @@ data class Role(
 
     @Column(length = 500)
     val description: String? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_role_id")
+    val parent: Role? = null,
 
     @OneToMany(mappedBy = "role", cascade = [CascadeType.ALL], orphanRemoval = true)
     val permissions: MutableList<Permission> = mutableListOf(),

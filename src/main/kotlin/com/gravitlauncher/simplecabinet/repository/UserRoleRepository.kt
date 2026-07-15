@@ -11,7 +11,15 @@ import java.time.LocalDateTime
 interface UserRoleRepository : JpaRepository<UserRole, Long> {
     fun findByUser(user: User): List<UserRole>
     
-    @Query("SELECT ur FROM UserRole ur WHERE ur.user = :user AND (ur.expiresAt IS NULL OR ur.expiresAt > :currentTime)")
+    @Query(
+        """
+        SELECT DISTINCT ur
+        FROM UserRole ur
+        JOIN FETCH ur.role
+        WHERE ur.user = :user
+          AND (ur.expiresAt IS NULL OR ur.expiresAt > :currentTime)
+        """
+    )
     fun findActiveByUser(user: User, currentTime: LocalDateTime = LocalDateTime.now()): List<UserRole>
     
     fun deleteByUser(user: User)

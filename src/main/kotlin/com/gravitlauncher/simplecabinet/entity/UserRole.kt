@@ -4,7 +4,13 @@ import jakarta.persistence.*
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "user_roles")
+@Table(
+    name = "user_roles",
+    indexes = [
+        Index(name = "idx_user_role_user_expiry", columnList = "user_id, expires_at"),
+        Index(name = "idx_user_role_role", columnList = "role_id")
+    ]
+)
 data class UserRole(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -18,9 +24,9 @@ data class UserRole(
     @JoinColumn(name = "role_id", nullable = false)
     val role: Role,
 
-    @Column(nullable = false)
+    @Column(name = "assigned_at", nullable = false)
     val assignedAt: LocalDateTime = LocalDateTime.now(),
 
-    @Column
+    @Column(name = "expires_at")
     val expiresAt: LocalDateTime? = null
 )

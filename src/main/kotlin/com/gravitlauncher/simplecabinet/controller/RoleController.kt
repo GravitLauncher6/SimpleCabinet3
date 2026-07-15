@@ -25,6 +25,7 @@ class RoleController(
                 id = role.id!!,
                 name = role.name,
                 description = role.description,
+                parentRoleId = role.parent?.id,
                 permissions = role.permissions.map { permission ->
                     PermissionResponse(
                         id = permission.id!!,
@@ -47,6 +48,7 @@ class RoleController(
             id = role.id!!,
             name = role.name,
             description = role.description,
+            parentRoleId = role.parent?.id,
             permissions = role.permissions.map { permission ->
                 PermissionResponse(
                     id = permission.id!!,
@@ -63,11 +65,12 @@ class RoleController(
     @PostMapping
     @RequirePermission("role.create")
     fun createRole(@Valid @RequestBody request: CreateRoleRequest): ResponseEntity<RoleResponse> {
-        val role = roleService.createRole(request.name, request.description)
+        val role = roleService.createRole(request.name, request.description, request.parentRoleId)
         val response = RoleResponse(
             id = role.id!!,
             name = role.name,
             description = role.description,
+            parentRoleId = role.parent?.id,
             permissions = emptyList(),
             createdAt = role.createdAt.toString(),
             updatedAt = role.updatedAt.toString()

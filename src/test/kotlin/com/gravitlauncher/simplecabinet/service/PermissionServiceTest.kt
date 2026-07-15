@@ -4,7 +4,7 @@ import com.gravitlauncher.simplecabinet.entity.Permission
 import com.gravitlauncher.simplecabinet.entity.Role
 import com.gravitlauncher.simplecabinet.entity.User
 import com.gravitlauncher.simplecabinet.entity.UserRole
-import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
+import com.gravitlauncher.simplecabinet.repository.PermissionRepository
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -15,15 +15,15 @@ import java.time.LocalDateTime
 
 class PermissionServiceTest {
 
-    private lateinit var userRoleRepository: UserRoleRepository
+    private lateinit var permissionRepository: PermissionRepository
     private lateinit var customUserDetailsService: CustomUserDetailsService
     private lateinit var permissionService: PermissionService
 
     @BeforeEach
     fun setup() {
-        userRoleRepository = mock()
+        permissionRepository = mock()
         customUserDetailsService = mock()
-        permissionService = PermissionService(userRoleRepository, customUserDetailsService)
+        permissionService = PermissionService(permissionRepository, customUserDetailsService)
     }
 
     @Test
@@ -37,8 +37,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act
         val result = permissionService.hasPermission(user, "user.profile")
@@ -58,8 +58,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act & Assert
         assertTrue(permissionService.hasPermission(user, "user.profile"))
@@ -80,8 +80,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act & Assert
         assertTrue(permissionService.hasPermission(user, "admin.create"))
@@ -102,8 +102,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act & Assert
         assertTrue(permissionService.hasPermission(user, "admin.create"))
@@ -123,8 +123,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act & Assert
         assertTrue(permissionService.hasPermission(user, "user.delete"))
@@ -145,8 +145,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act & Assert
         assertTrue(permissionService.hasPermission(user, "admin.users.123.delete"))
@@ -174,8 +174,8 @@ class PermissionServiceTest {
         user.userRoles.add(userRole1Assignment)
         user.userRoles.add(userRole2Assignment)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole1Assignment, userRole2Assignment))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission1, permission2))
 
         // Act & Assert
         assertTrue(permissionService.hasPermission(user, "user.profile"))
@@ -189,7 +189,7 @@ class PermissionServiceTest {
         // Arrange
         val user = createUser(1L, "testuser")
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
             .thenReturn(emptyList())
 
         // Act
@@ -207,7 +207,7 @@ class PermissionServiceTest {
         val permission = createPermission(1L, role, "user.*")
         role.permissions.add(permission)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
             .thenReturn(emptyList()) // Expired role filtered out
 
         // Act
@@ -228,8 +228,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act
         val result = permissionService.getPermissionValue(user, "file.upload.max_size")
@@ -249,8 +249,8 @@ class PermissionServiceTest {
         val userRole = createUserRole(1L, user, role)
         user.userRoles.add(userRole)
 
-        whenever(userRoleRepository.findActiveByUser(any(), any()))
-            .thenReturn(listOf(userRole))
+        whenever(permissionRepository.findEffectiveByUserId(any(), any()))
+            .thenReturn(listOf(permission))
 
         // Act
         val result = permissionService.getPermissionValue(user, "file.upload")

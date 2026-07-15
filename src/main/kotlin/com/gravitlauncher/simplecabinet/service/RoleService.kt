@@ -37,14 +37,16 @@ class RoleService(
     }
 
     @Transactional
-    fun createRole(name: String, description: String?): Role {
+    fun createRole(name: String, description: String?, parentRoleId: Long? = null): Role {
         if (roleRepository.existsByName(name)) {
             throw DuplicateResourceException(ErrorCode.ROLE_ALREADY_EXISTS, "Role already exists: $name")
         }
 
+        val parent = parentRoleId?.let { getRoleById(it) }
         val role = Role(
             name = name,
             description = description,
+            parent = parent,
             createdAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now()
         )

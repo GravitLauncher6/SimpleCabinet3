@@ -6,7 +6,9 @@ data class CreateRoleRequest(
     @field:NotBlank(message = "Role name is required")
     val name: String,
     
-    val description: String? = null
+    val description: String? = null,
+
+    val parentRoleId: Long? = null
 )
 
 data class AddPermissionRequest(
@@ -26,6 +28,7 @@ data class RoleResponse(
     val id: Long,
     val name: String,
     val description: String?,
+    val parentRoleId: Long?,
     val permissions: List<PermissionResponse>,
     val createdAt: String,
     val updatedAt: String

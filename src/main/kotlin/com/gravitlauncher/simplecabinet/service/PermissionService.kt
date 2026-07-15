@@ -1,14 +1,15 @@
 package com.gravitlauncher.simplecabinet.service
 
 import com.gravitlauncher.simplecabinet.entity.User
-import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
+import com.gravitlauncher.simplecabinet.entity.Permission
+import com.gravitlauncher.simplecabinet.repository.PermissionRepository
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 
 @Service
 class PermissionService(
-    private val userRoleRepository: UserRoleRepository,
+    private val permissionRepository: PermissionRepository,
     private val customUserDetailsService: CustomUserDetailsService
 ) {
 
@@ -54,12 +55,8 @@ class PermissionService(
     }
 
     fun hasPermission(user: User, permissionKey: String): Boolean {
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        
-        return activeRoles.any { userRole ->
-            userRole.role.permissions.any { permission ->
-                matchesPermission(permission.permissionKey, permissionKey)
-            }
+        return getActivePermissions(user).any { permission ->
+            matchesPermission(permission.permissionKey, permissionKey)
         }
     }
 
@@ -69,17 +66,11 @@ class PermissionService(
     }
 
     fun getPermissionValue(user: User, permissionKey: String): String? {
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        
-        for (userRole in activeRoles) {
-            val permission = userRole.role.permissions.find { 
+        return getActivePermissions(user)
+            .find {
                 matchesPermission(it.permissionKey, permissionKey)
             }
-            if (permission != null) {
-                return permission.permissionValue
-            }
-        }
-        return null
+            ?.permissionValue
     }
 
     fun getPermissionValue(permissionKey: String): String? {
@@ -88,17 +79,20 @@ class PermissionService(
     }
 
     fun getAllPermissions(user: User): Map<String, String?> {
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
         val permissionsMap = mutableMapOf<String, String?>()
-        
-        for (userRole in activeRoles) {
-            for (permission in userRole.role.permissions) {
-                // Later roles override earlier ones
+
+        for (permission in getActivePermissions(user)) {
+            if (!permissionsMap.containsKey(permission.permissionKey)) {
                 permissionsMap[permission.permissionKey] = permission.permissionValue
             }
         }
-        
+
         return permissionsMap
+    }
+
+    private fun getActivePermissions(user: User): List<Permission> {
+        val userId = user.id ?: return emptyList()
+        return permissionRepository.findEffectiveByUserId(userId, LocalDateTime.now())
     }
 
     fun isAuthenticated(): Boolean {
