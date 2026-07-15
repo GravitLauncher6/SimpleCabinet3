@@ -17,8 +17,12 @@ import com.gravitlauncher.simplecabinet.repository.BlobRepository
 import com.gravitlauncher.simplecabinet.repository.CasDirectoryRepository
 import com.gravitlauncher.simplecabinet.repository.DirectoryBranchRepository
 import com.gravitlauncher.simplecabinet.repository.DirectoryVersionRepository
+import com.gravitlauncher.simplecabinet.service.storage.StorageService
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.multipart.MultipartFile
+import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
@@ -28,7 +32,8 @@ class CasStorageService(
     private val blobRepository: BlobRepository,
     private val casDirectoryRepository: CasDirectoryRepository,
     private val directoryVersionRepository: DirectoryVersionRepository,
-    private val directoryBranchRepository: DirectoryBranchRepository
+    private val directoryBranchRepository: DirectoryBranchRepository,
+    private val storageService: StorageService
 ) {
 
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
@@ -82,6 +87,47 @@ class CasStorageService(
             blobRepository.findByHash(hash.trim())
                 .orElseThrow { ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "Blob not found: $hash") }
         )
+    }
+
+    @Transactional
+    fun upload(file: MultipartFile): BlobResponse {
+        if (file.isEmpty) {
+            throw InvalidInputException(message = "File is required")
+        }
+
+        val bytes = file.bytes
+        val digest = MessageDigest.getInstance(SHA_256).digest(bytes).toHex()
+        val hash = "sha256:$digest"
+        val existingBlob = blobRepository.findByHash(hash).orElse(null)
+        if (existingBlob != null) {
+            return toBlobResponse(existingBlob)
+        }
+
+        val requestedKey = "blobs/sha256/${digest.take(2)}/${digest.substring(2, 4)}/$digest"
+        val storageKey = storageService.upload(
+            requestedKey,
+            ByteArrayInputStream(bytes),
+            file.contentType ?: MediaType.APPLICATION_OCTET_STREAM_VALUE
+        )
+
+        return toBlobResponse(
+            blobRepository.save(
+                Blob(
+                    hash = hash,
+                    algorithm = SHA_256,
+                    sizeBytes = bytes.size.toLong(),
+                    storageKey = storageKey
+                )
+            )
+        )
+    }
+
+    @Transactional
+    fun bulkUpload(files: List<MultipartFile>): List<BlobResponse> {
+        if (files.isEmpty()) {
+            throw InvalidInputException(message = "At least one file is required")
+        }
+        return files.map(::upload)
     }
 
     @Transactional
@@ -391,4 +437,10 @@ class CasStorageService(
         val size: Long,
         val storageKey: String
     )
+
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+    private companion object {
+        const val SHA_256 = "SHA-256"
+    }
 }

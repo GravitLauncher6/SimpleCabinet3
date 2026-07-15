@@ -8,12 +8,14 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
 
 @RestController
-@RequestMapping("/api/cas")
+@RequestMapping("/cas")
 @Validated
 class CasController(
     private val casStorageService: CasStorageService
@@ -29,6 +31,18 @@ class CasController(
     @RequirePermission("admin.cas.write")
     fun registerBlob(@Valid @RequestBody request: BlobRegistrationRequest): ResponseEntity<BlobResponse> {
         return ResponseEntity.status(HttpStatus.CREATED).body(casStorageService.registerBlob(request))
+    }
+
+    @PostMapping("/upload", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @RequirePermission("admin.cas.write")
+    fun upload(@RequestPart("file") file: MultipartFile): ResponseEntity<BlobResponse> {
+        return ResponseEntity.status(HttpStatus.CREATED).body(casStorageService.upload(file))
+    }
+
+    @PostMapping("/upload/bulk", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @RequirePermission("admin.cas.write")
+    fun bulkUpload(@RequestPart("files") files: List<MultipartFile>): ResponseEntity<List<BlobResponse>> {
+        return ResponseEntity.status(HttpStatus.CREATED).body(casStorageService.bulkUpload(files))
     }
 
     @PostMapping("/directories")
