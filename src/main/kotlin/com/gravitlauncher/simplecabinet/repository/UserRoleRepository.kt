@@ -2,6 +2,7 @@ package com.gravitlauncher.simplecabinet.repository
 
 import com.gravitlauncher.simplecabinet.entity.User
 import com.gravitlauncher.simplecabinet.entity.UserRole
+import com.gravitlauncher.simplecabinet.entity.Role
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
@@ -10,6 +11,7 @@ import java.time.LocalDateTime
 @Repository
 interface UserRoleRepository : JpaRepository<UserRole, Long> {
     fun findByUser(user: User): List<UserRole>
+    fun existsByUserAndRole(user: User, role: Role): Boolean
     
     @Query(
         """

@@ -100,7 +100,7 @@ class UserServiceTest {
         whenever(passwordEncoder.encode(request.password)).thenReturn("encodedPassword")
         whenever(userRepository.save(any())).thenReturn(savedUser)
         whenever(roleRepository.findByName("USER")).thenReturn(Optional.of(defaultRole))
-        whenever(jwtUtil.generateToken(savedUser.username, "USER")).thenReturn("jwt-token")
+        whenever(jwtUtil.generateToken(savedUser.username, "USER", session.sessionToken)).thenReturn("jwt-token")
         whenever(sessionService.createSession(savedUser)).thenReturn(session)
 
         // Act
@@ -195,7 +195,7 @@ class UserServiceTest {
         whenever(userRepository.findByUsername(request.username)).thenReturn(Optional.of(user))
         whenever(customUserDetailsService.loadUserEntityByUsername(request.username)).thenReturn(user)
         whenever(userRoleRepository.findActiveByUser(any(), any())).thenReturn(listOf(userRole))
-        whenever(jwtUtil.generateToken(user.username, "USER")).thenReturn("jwt-token")
+        whenever(jwtUtil.generateToken(user.username, "USER", session.sessionToken)).thenReturn("jwt-token")
         whenever(sessionService.createSession(user)).thenReturn(session)
 
         // Act
@@ -260,6 +260,7 @@ class UserServiceTest {
         userService.deleteUser(userId)
 
         // Assert
+        verify(sessionService).deleteAllUserSessions(userId)
         verify(userRepository).deleteById(userId)
     }
 

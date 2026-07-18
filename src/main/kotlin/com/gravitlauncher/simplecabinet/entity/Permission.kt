@@ -5,6 +5,12 @@ import jakarta.persistence.*
 @Entity
 @Table(
     name = "permissions",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_permission_role_key",
+            columnNames = ["role_id", "permission_key"]
+        )
+    ],
     indexes = [
         Index(name = "idx_permission_role", columnList = "role_id"),
         Index(name = "idx_permission_key", columnList = "permission_key")

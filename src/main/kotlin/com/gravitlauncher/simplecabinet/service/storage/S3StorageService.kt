@@ -1,7 +1,5 @@
 package com.gravitlauncher.simplecabinet.service.storage
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.stereotype.Service
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.core.sync.RequestBody
@@ -13,8 +11,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import java.io.InputStream
 import java.net.URI
 
-@Service
-@ConditionalOnProperty("storage.type", havingValue = "S3")
 class S3StorageService(
     private val storageProperties: StorageProperties
 ) : StorageService {

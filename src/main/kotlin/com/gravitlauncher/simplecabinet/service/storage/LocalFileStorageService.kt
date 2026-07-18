@@ -2,14 +2,12 @@ package com.gravitlauncher.simplecabinet.service.storage
 
 import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.exception.ErrorCode
-import org.springframework.stereotype.Service
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
-@Service
 class LocalFileStorageService(
     private val storageProperties: StorageProperties
 ) : StorageService {

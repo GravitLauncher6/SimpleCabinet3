@@ -11,6 +11,7 @@ import java.time.LocalDateTime
 interface PermissionRepository : JpaRepository<Permission, Long> {
     fun findByRole(role: Role): List<Permission>
     fun findByRoleAndPermissionKey(role: Role, permissionKey: String): List<Permission>
+    fun existsByRoleAndPermissionKey(role: Role, permissionKey: String): Boolean
 
     @Query(
         value = """
@@ -26,6 +27,7 @@ interface PermissionRepository : JpaRepository<Permission, Long> {
             FROM roles r
             JOIN effective_roles er ON er.role_id = r.id
             WHERE r.parent_role_id IS NOT NULL
+              AND er.depth < 16
         )
         SELECT p.*
         FROM permissions p

@@ -119,10 +119,17 @@ class UserService(
                         "Username is already owned by another user"
                     )
                 }
+                val email = identity.email ?: "${identity.providerId}-${identity.subject}@external.local"
+                if (userRepository.existsByEmail(email)) {
+                    throw DuplicateResourceException(
+                        ErrorCode.USER_ALREADY_EXISTS,
+                        "Email is already owned by another user"
+                    )
+                }
                 userRepository.save(
                     User(
                         username = identity.username,
-                        email = identity.email ?: "${identity.subject}@external.local",
+                        email = email,
                         // External users never authenticate through this value.
                         password = passwordEncoder.encode(java.util.UUID.randomUUID().toString()).orEmpty(),
                         userType = UserType.EXTERNAL,
@@ -214,6 +221,7 @@ class UserService(
         if (!userRepository.existsById(id)) {
             throw ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $id")
         }
+        sessionService.deleteAllUserSessions(id)
         userRepository.deleteById(id)
     }
 
@@ -238,7 +246,7 @@ class UserService(
 
     private fun responseFor(user: User, role: String, session: com.gravitlauncher.simplecabinet.entity.Session) =
         AuthResponse(
-            token = jwtUtil.generateToken(user.username, role),
+            token = jwtUtil.generateToken(user.username, role, session.sessionToken),
             refreshToken = session.sessionToken,
             username = user.username,
             email = user.email,

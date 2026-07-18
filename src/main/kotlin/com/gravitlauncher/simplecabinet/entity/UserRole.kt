@@ -6,6 +6,12 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "user_roles",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_user_role_user_role",
+            columnNames = ["user_id", "role_id"]
+        )
+    ],
     indexes = [
         Index(name = "idx_user_role_user_expiry", columnList = "user_id, expires_at"),
         Index(name = "idx_user_role_role", columnList = "role_id")

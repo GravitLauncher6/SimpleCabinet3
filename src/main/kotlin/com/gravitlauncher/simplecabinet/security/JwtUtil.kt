@@ -39,9 +39,10 @@ class JwtUtil {
         return publicKey
     }
 
-    fun generateToken(username: String, role: String): String {
+    fun generateToken(username: String, role: String, sessionToken: String): String {
         val claims = HashMap<String, Any>()
         claims["role"] = role
+        claims["sessionId"] = sessionToken
         
         return Jwts.builder()
             .claims(claims)
@@ -58,6 +59,11 @@ class JwtUtil {
 
     fun extractRole(token: String): String {
         return extractAllClaims(token)["role"] as String
+    }
+
+    fun extractSessionToken(token: String): String {
+        return extractAllClaims(token)["sessionId"] as? String
+            ?: throw IllegalArgumentException("Token does not contain a session id")
     }
 
     fun isTokenValid(token: String, userDetails: UserDetails): Boolean {

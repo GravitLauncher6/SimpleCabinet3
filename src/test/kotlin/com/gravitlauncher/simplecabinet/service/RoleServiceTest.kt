@@ -161,6 +161,19 @@ class RoleServiceTest {
     }
 
     @Test
+    fun `addPermissionToRole should reject duplicate permission key`() {
+        val role = Role(id = 1L, name = "USER")
+        whenever(roleRepository.findById(1L)).thenReturn(Optional.of(role))
+        whenever(permissionRepository.existsByRoleAndPermissionKey(role, "user.profile")).thenReturn(true)
+
+        assertThrows<DuplicateResourceException> {
+            roleService.addPermissionToRole(1L, " user.profile ", null)
+        }
+
+        verify(permissionRepository, never()).save(any())
+    }
+
+    @Test
     fun `assignRoleToUser should assign role to user`() {
         // Arrange
         val userId = 1L
@@ -290,6 +303,35 @@ class RoleServiceTest {
         // Act & Assert
         assertThrows<ResourceNotFoundException> {
             roleService.assignRoleToUser(userId, roleId, null)
+        }
+
+        verify(userRoleRepository, never()).save(any())
+    }
+
+    @Test
+    fun `assignRoleToUser should reject duplicate role assignment`() {
+        val user = User(id = 1L, username = "testuser", email = "test@example.com", password = "password")
+        val role = Role(id = 1L, name = "USER")
+        whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+        whenever(roleRepository.findById(1L)).thenReturn(Optional.of(role))
+        whenever(userRoleRepository.existsByUserAndRole(user, role)).thenReturn(true)
+
+        assertThrows<DuplicateResourceException> {
+            roleService.assignRoleToUser(1L, 1L, null)
+        }
+
+        verify(userRoleRepository, never()).save(any())
+    }
+
+    @Test
+    fun `assignRoleToUser should reject expiration in the past`() {
+        val user = User(id = 1L, username = "testuser", email = "test@example.com", password = "password")
+        val role = Role(id = 1L, name = "TRIAL")
+        whenever(userRepository.findById(1L)).thenReturn(Optional.of(user))
+        whenever(roleRepository.findById(1L)).thenReturn(Optional.of(role))
+
+        assertThrows<com.gravitlauncher.simplecabinet.exception.InvalidInputException> {
+            roleService.assignRoleToUser(1L, 1L, LocalDateTime.now().minusMinutes(1))
         }
 
         verify(userRoleRepository, never()).save(any())

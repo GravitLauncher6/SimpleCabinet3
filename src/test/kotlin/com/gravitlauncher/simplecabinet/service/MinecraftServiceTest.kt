@@ -7,11 +7,13 @@ import com.gravitlauncher.simplecabinet.dto.MinecraftJoinRequest
 import com.gravitlauncher.simplecabinet.dto.MinecraftPlayerAttributesUpdateRequest
 import com.gravitlauncher.simplecabinet.dto.MinecraftProfanityFilterPreferencesResponse
 import com.gravitlauncher.simplecabinet.dto.RegisterRequest
+import com.gravitlauncher.simplecabinet.exception.UnauthorizedException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
@@ -68,7 +70,7 @@ class MinecraftServiceTest {
         val profile = minecraftService.getProfile()
         minecraftService.joinServer(
             MinecraftJoinRequest(
-                accessToken = auth.refreshToken,
+                accessToken = auth.token,
                 selectedProfile = profile.id,
                 serverId = "test-server-id"
             )
@@ -78,6 +80,31 @@ class MinecraftServiceTest {
         assertEquals(profile.id, joined.id)
         assertEquals("alex", joined.name)
         assertNotNull(joined.properties.first().signature)
+    }
+
+    @Test
+    fun `join server should reject access token after logout`() {
+        val auth = userService.register(
+            RegisterRequest(
+                username = "loggedout",
+                email = "loggedout@example.com",
+                password = "password123"
+            )
+        )
+        authenticate("loggedout")
+        val profile = minecraftService.getProfile()
+
+        userService.logout(auth.refreshToken)
+
+        assertThrows<UnauthorizedException> {
+            minecraftService.joinServer(
+                MinecraftJoinRequest(
+                    accessToken = auth.token,
+                    selectedProfile = profile.id,
+                    serverId = "test-server-id"
+                )
+            )
+        }
     }
 
     @Test

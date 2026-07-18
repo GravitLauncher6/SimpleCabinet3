@@ -2,6 +2,11 @@ spring:
   application:
     name: simplecabinet-test
 
+  servlet:
+    multipart:
+      max-file-size: 64MB
+      max-request-size: 256MB
+
   datasource:
     url: jdbc:h2:mem:testdb
     driver-class-name: org.h2.Driver

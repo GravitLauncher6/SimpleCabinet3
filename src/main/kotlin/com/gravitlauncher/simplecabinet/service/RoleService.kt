@@ -6,6 +6,7 @@ import com.gravitlauncher.simplecabinet.entity.User
 import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
 import com.gravitlauncher.simplecabinet.exception.ErrorCode
 import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
+import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.repository.PermissionRepository
 import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
@@ -57,10 +58,20 @@ class RoleService(
     @Transactional
     fun addPermissionToRole(roleId: Long, permissionKey: String, permissionValue: String?): Permission {
         val role = getRoleById(roleId)
+        val normalizedKey = permissionKey.trim()
+        if (normalizedKey.isEmpty()) {
+            throw InvalidInputException(ErrorCode.INVALID_PERMISSION, "Permission key is required")
+        }
+        if (permissionRepository.existsByRoleAndPermissionKey(role, normalizedKey)) {
+            throw DuplicateResourceException(
+                ErrorCode.DUPLICATE_RESOURCE,
+                "Permission already exists for role ${role.name}: $normalizedKey"
+            )
+        }
 
         val permission = Permission(
             role = role,
-            permissionKey = permissionKey,
+            permissionKey = normalizedKey,
             permissionValue = permissionValue
         )
 
@@ -77,6 +88,15 @@ class RoleService(
         val user = userRepository.findById(userId)
             .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $userId") }
         val role = getRoleById(roleId)
+        if (expiresAt != null && !expiresAt.isAfter(LocalDateTime.now())) {
+            throw InvalidInputException(ErrorCode.INVALID_ROLE_DATA, "Role expiration must be in the future")
+        }
+        if (userRoleRepository.existsByUserAndRole(user, role)) {
+            throw DuplicateResourceException(
+                ErrorCode.DUPLICATE_RESOURCE,
+                "Role ${role.name} is already assigned to user ${user.username}"
+            )
+        }
 
         val userRole = com.gravitlauncher.simplecabinet.entity.UserRole(
             user = user,

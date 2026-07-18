@@ -16,6 +16,7 @@ import com.gravitlauncher.simplecabinet.repository.BlobRepository
 import com.gravitlauncher.simplecabinet.repository.UserAssetRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
+import com.gravitlauncher.simplecabinet.security.JwtUtil
 import com.gravitlauncher.simplecabinet.service.storage.StorageService
 import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
@@ -48,6 +49,7 @@ class MinecraftService(
     private val userAssetRepository: UserAssetRepository,
     private val blobRepository: BlobRepository,
     private val storageService: StorageService,
+    private val jwtUtil: JwtUtil,
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
 ) {
 
@@ -318,9 +320,26 @@ class MinecraftService(
         if (token.isEmpty()) {
             throw UnauthorizedException(ErrorCode.UNAUTHORIZED, "The request requires user authentication")
         }
-        val session = sessionService.findByToken(token)
+        val username = try {
+            jwtUtil.extractUsername(token)
+        } catch (_: Exception) {
+            throw UnauthorizedException(ErrorCode.INVALID_TOKEN, "Invalid access token")
+        }
+        val sessionToken = try {
+            jwtUtil.extractSessionToken(token)
+        } catch (_: Exception) {
+            throw UnauthorizedException(ErrorCode.INVALID_TOKEN, "Invalid access token")
+        }
+        val session = sessionService.findByToken(sessionToken)
             .orElseThrow { UnauthorizedException(ErrorCode.INVALID_TOKEN, "Invalid access token") }
-        return sessionService.verifySession(session)
+        if (session.user.username != username) {
+            throw UnauthorizedException(ErrorCode.INVALID_TOKEN, "Invalid access token")
+        }
+        return try {
+            sessionService.verifySession(session)
+        } catch (_: Exception) {
+            throw UnauthorizedException(ErrorCode.INVALID_TOKEN, "Invalid access token")
+        }
     }
 
     private fun buildAttributes(user: User): MinecraftPlayerAttributesResponse {
