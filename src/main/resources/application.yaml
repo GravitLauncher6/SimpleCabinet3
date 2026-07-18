@@ -31,6 +31,50 @@ jwt:
   expiration: 86400000
   session-expiration: 604800000
 
+# Optional external authentication. No provider connection or request is made while disabled.
+external-auth:
+  enabled: false
+  provider-id: default
+  # Use long random secrets from environment variables in production.
+  state-encryption-secret: ${EXTERNAL_AUTH_STATE_SECRET:change-me-before-enabling}
+  credential-fingerprint-secret: ${EXTERNAL_AUTH_FINGERPRINT_SECRET:change-me-before-enabling}
+  oauth:
+    callback-url: http://localhost:8080/auth/oauth/callback/{providerId}
+  type: SQL # SQL or HTTP
+  sql:
+    jdbc-url: jdbc:postgresql://localhost:5432/external_users
+    username: external_auth
+    password: ""
+    driver-class-name: "" # Usually auto-detected from the JDBC URL
+    table: users
+    subject-column: id
+    username-column: username
+    password-column: password
+    email-column: email
+    roles-column: roles
+    enabled-column: enabled
+    role-separator: ","
+    password-encoding: BCRYPT # BCRYPT or PLAIN
+  http:
+    base-url: http://localhost:8081
+    authenticate-endpoint: /auth/login
+    refresh-endpoint: /auth/refresh
+    connect-timeout: 5s
+    read-timeout: 10s
+    headers: {}
+    fields:
+      username-request: username
+      password-request: password
+      refresh-token-request: refreshToken
+      subject-response: id
+      success-response: success
+      username-response: username
+      email-response: email
+      roles-response: roles
+      error-response: errorMessage
+      refresh-token-response: refreshToken
+      access-token-response: accessToken
+
 # Storage configuration
 storage:
   # Type of storage: LOCAL or S3

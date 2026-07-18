@@ -11,7 +11,7 @@ import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
 import com.gravitlauncher.simplecabinet.security.JwtUtil
-import com.gravitlauncher.simplecabinet.service.auth.ExternalAuthService
+import com.gravitlauncher.simplecabinet.service.auth.ExternalAuthSystem
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -33,7 +33,7 @@ class UserServiceTest {
     private lateinit var authenticationManager: AuthenticationManager
     private lateinit var customUserDetailsService: CustomUserDetailsService
     private lateinit var sessionService: SessionService
-    private lateinit var externalAuthService: ExternalAuthService
+    private lateinit var externalAuthSystem: ExternalAuthSystem
     private lateinit var userService: UserService
 
     @BeforeEach
@@ -46,7 +46,7 @@ class UserServiceTest {
         authenticationManager = mock()
         customUserDetailsService = mock()
         sessionService = mock()
-        externalAuthService = mock()
+        externalAuthSystem = mock()
 
         userService = UserService(
             userRepository,
@@ -57,7 +57,7 @@ class UserServiceTest {
             authenticationManager,
             customUserDetailsService,
             sessionService,
-            externalAuthService
+            externalAuthSystem
         )
     }
 
@@ -235,6 +235,19 @@ class UserServiceTest {
         assertThrows<BadCredentialsException> {
             userService.login(request)
         }
+    }
+
+    @Test
+    fun `login should not call external auth when it is disabled`() {
+        val request = LoginRequest(username = "missing", password = "password")
+        whenever(userRepository.findByUsername(request.username)).thenReturn(Optional.empty())
+        whenever(externalAuthSystem.defaultProvider()).thenReturn(null)
+
+        assertThrows<com.gravitlauncher.simplecabinet.exception.UnauthorizedException> {
+            userService.login(request)
+        }
+
+        verify(externalAuthSystem).defaultProvider()
     }
 
     @Test

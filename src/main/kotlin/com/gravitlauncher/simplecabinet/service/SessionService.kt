@@ -31,7 +31,9 @@ class SessionService(
         user: User,
         ipAddress: String? = null,
         userAgent: String? = null,
-        deviceType: String? = null
+        deviceType: String? = null,
+        externalProviderId: String? = null,
+        externalState: String? = null
     ): Session {
         // Clean up old sessions if max limit reached
         val activeSessions = sessionRepository.findActiveSessionsByUser(user, Instant.now())
@@ -49,7 +51,9 @@ class SessionService(
             expiresAt = Instant.now().plusMillis(sessionDurationMs),
             ipAddress = ipAddress,
             userAgent = userAgent,
-            deviceType = deviceType
+            deviceType = deviceType,
+            externalProviderId = externalProviderId,
+            externalState = externalState
         )
 
         return sessionRepository.save(session)
@@ -93,6 +97,15 @@ class SessionService(
         
         // Create updated session (since it's a data class)
         val updatedSession = session.copy(lastAccessedAt = Instant.now())
+        return sessionRepository.save(updatedSession)
+    }
+
+    @Transactional
+    fun updateExternalState(session: Session, externalState: String): Session {
+        val updatedSession = session.copy(
+            externalState = externalState,
+            lastAccessedAt = Instant.now()
+        )
         return sessionRepository.save(updatedSession)
     }
 

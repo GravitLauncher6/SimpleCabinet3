@@ -2,16 +2,17 @@ package com.gravitlauncher.simplecabinet.service
 
 import com.gravitlauncher.simplecabinet.dto.*
 import com.gravitlauncher.simplecabinet.entity.User
+import com.gravitlauncher.simplecabinet.entity.UserRole
 import com.gravitlauncher.simplecabinet.entity.UserType
 import com.gravitlauncher.simplecabinet.exception.DuplicateResourceException
 import com.gravitlauncher.simplecabinet.exception.ErrorCode
 import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.exception.UnauthorizedException
+import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
 import com.gravitlauncher.simplecabinet.repository.UserRoleRepository
-import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.security.JwtUtil
-import com.gravitlauncher.simplecabinet.service.auth.ExternalAuthService
+import com.gravitlauncher.simplecabinet.service.auth.*
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -29,239 +30,166 @@ class UserService(
     private val authenticationManager: AuthenticationManager,
     private val customUserDetailsService: CustomUserDetailsService,
     private val sessionService: SessionService,
-    private val externalAuthService: ExternalAuthService
+    private val externalAuthSystem: ExternalAuthSystem
 ) {
-
     @Transactional
     fun register(request: RegisterRequest): AuthResponse {
         if (userRepository.existsByUsername(request.username)) {
             throw DuplicateResourceException(ErrorCode.USER_ALREADY_EXISTS, "Username already exists")
         }
-
         if (userRepository.existsByEmail(request.email)) {
             throw DuplicateResourceException(ErrorCode.USER_ALREADY_EXISTS, "Email already exists")
         }
-
-        val user = User(
-            username = request.username,
-            email = request.email,
-            password = passwordEncoder.encode(request.password) ?: "",
-            enabled = true,
-            createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
+        val user = userRepository.save(
+            User(
+                username = request.username,
+                email = request.email,
+                password = passwordEncoder.encode(request.password).orEmpty(),
+                enabled = true
+            )
         )
-
-        val savedUser = userRepository.save(user)
-        
-        // Assign default USER role
-        val defaultRole = roleRepository.findByName("USER")
-            .orElseGet {
-                roleRepository.save(
-                    com.gravitlauncher.simplecabinet.entity.Role(
-                        name = "USER",
-                        description = "Default user role"
-                    )
-                )
-            }
-        
-        val userRole = com.gravitlauncher.simplecabinet.entity.UserRole(
-            user = savedUser,
-            role = defaultRole,
-            assignedAt = LocalDateTime.now()
-        )
-        savedUser.userRoles.add(userRole)
-        userRoleRepository.save(userRole)
-        
-        val token = jwtUtil.generateToken(savedUser.username, "USER")
-        val session = sessionService.createSession(savedUser)
-
-        return AuthResponse(
-            token = token,
-            refreshToken = session.sessionToken,
-            username = savedUser.username,
-            email = savedUser.email,
-            role = "USER"
-        )
+        assignRoles(user, setOf("USER"), "Default user role")
+        return responseFor(user, "USER", sessionService.createSession(user))
     }
 
     @Transactional
     fun login(request: LoginRequest): AuthResponse {
-        // Check if user exists in local database
-        val userOptional = userRepository.findByUsername(request.username)
-        
-        if (userOptional.isPresent) {
-            val user = userOptional.get()
-            
-            // Handle external users
-            if (user.userType == UserType.EXTERNAL) {
-                return loginExternalUser(user, request.password)
-            }
-            
-            // Handle local users
-            return loginLocalUser(request)
-        } else {
-            // User not found locally - try external authentication
-            return tryExternalUserLogin(request)
+        val user = userRepository.findByUsername(request.username).orElse(null)
+        return when {
+            user == null -> authenticateWithDefaultExternalProvider(request)
+            user.userType == UserType.LOCAL -> loginLocalUser(request)
+            else -> authenticateExistingExternalUser(user, request)
         }
     }
-    
+
+    @Transactional
+    fun loginWithOAuthCallback(providerId: String, code: String, redirectUri: String): AuthResponse {
+        val provider = externalAuthSystem.provider(providerId) as? OAuthExternalAuthProvider
+            ?: throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "OAuth provider is unavailable")
+        return completeExternalAuthentication(provider.authenticateCallback(code, redirectUri))
+    }
+
+    fun oauthAuthorizationUrl(providerId: String, state: String, redirectUri: String): String {
+        val provider = externalAuthSystem.provider(providerId) as? OAuthExternalAuthProvider
+            ?: throw ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "OAuth provider not found")
+        return provider.authorizationUrl(state, redirectUri)
+    }
+
     private fun loginLocalUser(request: LoginRequest): AuthResponse {
         authenticationManager.authenticate(
             UsernamePasswordAuthenticationToken(request.username, request.password)
         )
-
         val user = customUserDetailsService.loadUserEntityByUsername(request.username)
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
-        
-        val token = jwtUtil.generateToken(user.username, primaryRole)
-        val session = sessionService.createSession(user)
-
-        return AuthResponse(
-            token = token,
-            refreshToken = session.sessionToken,
-            username = user.username,
-            email = user.email,
-            role = primaryRole
-        )
+        return responseFor(user, primaryRole(user), sessionService.createSession(user))
     }
-    
-    private fun loginExternalUser(user: User, password: String): AuthResponse {
-        // Authenticate with external system
-        val externalResult = externalAuthService.authenticate(user.username, password)
-        
-        if (!externalResult.success) {
-            throw UnauthorizedException(
-                ErrorCode.INVALID_CREDENTIALS,
-                externalResult.errorMessage ?: "External authentication failed"
-            )
-        }
-        
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
-        
-        val token = jwtUtil.generateToken(user.username, primaryRole)
-        val session = sessionService.createSession(user)
-        
-        // Notify external system about the refresh token
-        externalAuthService.notifyRefreshToken(user.username, session.sessionToken)
 
-        return AuthResponse(
-            token = token,
-            refreshToken = session.sessionToken,
-            username = user.username,
-            email = user.email,
-            role = primaryRole
-        )
+    private fun authenticateExistingExternalUser(user: User, request: LoginRequest): AuthResponse {
+        val providerId = user.externalProviderId
+            ?: throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "External user has no provider")
+        val provider = externalAuthSystem.provider(providerId) as? PasswordExternalAuthProvider
+            ?: throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "External authentication is unavailable")
+        val authentication = provider.authenticate(ExternalPasswordAuthentication(user.username, request.password))
+            ?: throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
+
+        if (authentication.identity.subject != user.externalSubject || authentication.identity.providerId != providerId) {
+            throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "External identity does not match this user")
+        }
+        return completeExternalAuthentication(authentication, user)
     }
-    
-    @Transactional
-    private fun tryExternalUserLogin(request: LoginRequest): AuthResponse {
-        // Try to authenticate with external system
-        val externalResult = externalAuthService.authenticate(request.username, request.password)
-        
-        if (!externalResult.success) {
-            throw UnauthorizedException(
-                ErrorCode.INVALID_CREDENTIALS,
-                externalResult.errorMessage ?: "Invalid credentials"
-            )
-        }
-        
-        // Create external user in local database
-        val user = User(
-            username = externalResult.username ?: request.username,
-            email = externalResult.email ?: "${request.username}@external.local",
-            password = passwordEncoder.encode("external-user-no-password") ?: "",
-            userType = UserType.EXTERNAL,
-            enabled = true,
-            createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
-        )
-        
-        val savedUser = userRepository.save(user)
-        
-        // Assign roles from external system or default role
-        val rolesToAssign = if (externalResult.roles.isNotEmpty()) {
-            externalResult.roles
-        } else {
-            listOf("USER")
-        }
-        
-        rolesToAssign.forEach { roleName ->
-            val role = roleRepository.findByName(roleName)
-                .orElseGet {
-                    roleRepository.save(
-                        com.gravitlauncher.simplecabinet.entity.Role(
-                            name = roleName,
-                            description = "Role from external system"
-                        )
+
+    private fun authenticateWithDefaultExternalProvider(request: LoginRequest): AuthResponse {
+        val provider = externalAuthSystem.defaultProvider()
+            ?: throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
+        val authentication = provider.authenticate(ExternalPasswordAuthentication(request.username, request.password))
+            ?: throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
+        return completeExternalAuthentication(authentication)
+    }
+
+    private fun completeExternalAuthentication(
+        authentication: ExternalAuthentication,
+        existingUser: User? = null
+    ): AuthResponse {
+        val identity = authentication.identity
+        val user = existingUser ?: userRepository
+            .findByExternalProviderIdAndExternalSubject(identity.providerId, identity.subject)
+            .orElseGet {
+                if (userRepository.existsByUsername(identity.username)) {
+                    throw DuplicateResourceException(
+                        ErrorCode.USER_ALREADY_EXISTS,
+                        "Username is already owned by another user"
                     )
                 }
-            
-            val userRole = com.gravitlauncher.simplecabinet.entity.UserRole(
-                user = savedUser,
-                role = role,
-                assignedAt = LocalDateTime.now()
-            )
-            savedUser.userRoles.add(userRole)
-            userRoleRepository.save(userRole)
-        }
-        
-        val primaryRole = rolesToAssign.firstOrNull() ?: "USER"
-        val token = jwtUtil.generateToken(savedUser.username, primaryRole)
-        val session = sessionService.createSession(savedUser)
-        
-        // Notify external system about the refresh token
-        externalAuthService.notifyRefreshToken(savedUser.username, session.sessionToken)
+                userRepository.save(
+                    User(
+                        username = identity.username,
+                        email = identity.email ?: "${identity.subject}@external.local",
+                        // External users never authenticate through this value.
+                        password = passwordEncoder.encode(java.util.UUID.randomUUID().toString()).orEmpty(),
+                        userType = UserType.EXTERNAL,
+                        externalProviderId = identity.providerId,
+                        externalSubject = identity.subject,
+                        enabled = true
+                    )
+                )
+            }
 
-        return AuthResponse(
-            token = token,
-            refreshToken = session.sessionToken,
-            username = savedUser.username,
-            email = savedUser.email,
-            role = primaryRole
+        if (user.userType != UserType.EXTERNAL ||
+            user.externalProviderId != identity.providerId ||
+            user.externalSubject != identity.subject
+        ) {
+            throw UnauthorizedException(ErrorCode.INVALID_CREDENTIALS, "External identity is not allowed")
+        }
+
+        if (user.userRoles.isEmpty()) {
+            assignRoles(user, identity.roles.ifEmpty { setOf("USER") }, "Role from external system")
+        }
+        val session = sessionService.createSession(
+            user,
+            externalProviderId = identity.providerId,
+            externalState = externalAuthSystem.encrypt(authentication.sessionState)
         )
+        return responseFor(user, primaryRole(user), session)
     }
 
     @Transactional
-    fun refreshToken(refreshTokenRequest: RefreshTokenRequest): AuthResponse {
-        val session = sessionService.findByToken(refreshTokenRequest.refreshToken)
+    fun refreshToken(request: RefreshTokenRequest): AuthResponse {
+        var session = sessionService.findByToken(request.refreshToken)
             .orElseThrow { ResourceNotFoundException(ErrorCode.TOKEN_NOT_FOUND, "Session not found") }
-
         sessionService.verifySession(session)
-        
+
         val user = session.user
-        
-        // For external users, verify refresh token with external system
         if (user.userType == UserType.EXTERNAL) {
-            val isValidInExternalSystem = externalAuthService.verifyRefreshToken(
-                user.username,
-                refreshTokenRequest.refreshToken
-            )
-            
-            if (!isValidInExternalSystem) {
-                sessionService.revokeSession(refreshTokenRequest.refreshToken)
-                throw UnauthorizedException(
-                    ErrorCode.TOKEN_EXPIRED,
-                    "Refresh token is invalid in external system"
-                )
+            if (!externalAuthSystem.enabled ||
+                session.externalProviderId != user.externalProviderId ||
+                session.externalState == null
+            ) {
+                return revokeAndRequireLogin(session.sessionToken)
+            }
+            val provider = externalAuthSystem.provider(user.externalProviderId!!)
+                ?: return revokeAndRequireLogin(session.sessionToken)
+            val state = runCatching { externalAuthSystem.decrypt(session.externalState!!) }
+                .getOrElse { return revokeAndRequireLogin(session.sessionToken) }
+            val providerId = requireNotNull(user.externalProviderId)
+            val externalSubject = requireNotNull(user.externalSubject)
+
+            when (val validation = provider.validateSession(
+                ExternalIdentityReference(providerId, externalSubject),
+                state
+            )) {
+                ExternalSessionValidation.ReauthenticationRequired -> return revokeAndRequireLogin(session.sessionToken)
+                is ExternalSessionValidation.Valid -> {
+                    if (validation.updatedState != null) {
+                        session = sessionService.updateExternalState(
+                            session,
+                            externalAuthSystem.encrypt(validation.updatedState)
+                        )
+                    }
+                }
             }
         }
-        
+
         sessionService.updateLastAccessed(session.sessionToken)
-
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        val primaryRole = activeRoles.firstOrNull()?.role?.name ?: "USER"
-        
-        val newAccessToken = jwtUtil.generateToken(user.username, primaryRole)
-
-        return AuthResponse(
-            token = newAccessToken,
-            refreshToken = session.sessionToken,
-            username = user.username,
-            email = user.email,
-            role = primaryRole
-        )
+        return responseFor(user, primaryRole(user), session)
     }
 
     @Transactional
@@ -269,58 +197,17 @@ class UserService(
         sessionService.revokeSession(refreshToken)
     }
 
-    fun getAllUsers(): List<UserResponse> {
-        return userRepository.findAll().map { user ->
-            val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-            val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
-            
-            UserResponse(
-                id = user.id!!,
-                username = user.username,
-                email = user.email,
-                role = roleNames.ifEmpty { "No roles" },
-                enabled = user.enabled,
-                createdAt = user.createdAt.toString(),
-                updatedAt = user.updatedAt.toString()
-            )
-        }
-    }
+    fun getAllUsers(): List<UserResponse> = userRepository.findAll().map(::toResponse)
 
-    fun getUserById(id: Long): UserResponse {
-        val user = userRepository.findById(id)
+    fun getUserById(id: Long): UserResponse = toResponse(
+        userRepository.findById(id)
             .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $id") }
+    )
 
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
-        
-        return UserResponse(
-            id = user.id!!,
-            username = user.username,
-            email = user.email,
-            role = roleNames.ifEmpty { "No roles" },
-            enabled = user.enabled,
-            createdAt = user.createdAt.toString(),
-            updatedAt = user.updatedAt.toString()
-        )
-    }
-
-    fun getUserByUsername(username: String): UserResponse {
-        val user = userRepository.findByUsername(username)
+    fun getUserByUsername(username: String): UserResponse = toResponse(
+        userRepository.findByUsername(username)
             .orElseThrow { ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found: $username") }
-
-        val activeRoles = userRoleRepository.findActiveByUser(user, LocalDateTime.now())
-        val roleNames = activeRoles.map { it.role.name }.joinToString(", ")
-        
-        return UserResponse(
-            id = user.id!!,
-            username = user.username,
-            email = user.email,
-            role = roleNames.ifEmpty { "No roles" },
-            enabled = user.enabled,
-            createdAt = user.createdAt.toString(),
-            updatedAt = user.updatedAt.toString()
-        )
-    }
+    )
 
     @Transactional
     fun deleteUser(id: Long) {
@@ -328,5 +215,46 @@ class UserService(
             throw ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "User not found with id: $id")
         }
         userRepository.deleteById(id)
+    }
+
+    private fun revokeAndRequireLogin(sessionToken: String): Nothing {
+        sessionService.revokeSession(sessionToken, "External authentication requires re-login")
+        throw UnauthorizedException(ErrorCode.TOKEN_EXPIRED, "External authentication requires re-login")
+    }
+
+    private fun assignRoles(user: User, roles: Set<String>, description: String) {
+        roles.forEach { roleName ->
+            val role = roleRepository.findByName(roleName).orElseGet {
+                roleRepository.save(com.gravitlauncher.simplecabinet.entity.Role(name = roleName, description = description))
+            }
+            val userRole = UserRole(user = user, role = role, assignedAt = LocalDateTime.now())
+            user.userRoles.add(userRole)
+            userRoleRepository.save(userRole)
+        }
+    }
+
+    private fun primaryRole(user: User): String =
+        userRoleRepository.findActiveByUser(user, LocalDateTime.now()).firstOrNull()?.role?.name ?: "USER"
+
+    private fun responseFor(user: User, role: String, session: com.gravitlauncher.simplecabinet.entity.Session) =
+        AuthResponse(
+            token = jwtUtil.generateToken(user.username, role),
+            refreshToken = session.sessionToken,
+            username = user.username,
+            email = user.email,
+            role = role
+        )
+
+    private fun toResponse(user: User): UserResponse {
+        val roles = userRoleRepository.findActiveByUser(user, LocalDateTime.now()).map { it.role.name }
+        return UserResponse(
+            id = user.id!!,
+            username = user.username,
+            email = user.email,
+            role = roles.joinToString(", ").ifEmpty { "No roles" },
+            enabled = user.enabled,
+            createdAt = user.createdAt.toString(),
+            updatedAt = user.updatedAt.toString()
+        )
     }
 }

@@ -49,5 +49,11 @@ data class Session(
     val revokedAt: Instant? = null,
 
     @Column(length = 255)
-    val revokedReason: String? = null
+    val revokedReason: String? = null,
+
+    @Column(name = "external_provider_id", length = 100)
+    val externalProviderId: String? = null,
+
+    @Column(name = "external_state", columnDefinition = "TEXT")
+    var externalState: String? = null
 )
