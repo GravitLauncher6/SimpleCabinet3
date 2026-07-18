@@ -264,8 +264,7 @@ class MinecraftService(
         }
 
         val requested = names.toSet()
-        return userRepository.findAll()
-            .filter { it.username in requested }
+        return userRepository.findAllByUsernameIn(requested)
             .map { toLookupProfile(it) }
     }
 
@@ -466,14 +465,12 @@ class MinecraftService(
     }
 
     private fun profileId(user: User): String {
-        return UUID.nameUUIDFromBytes("simplecabinet:minecraft:${user.id}:${user.username}".toByteArray(StandardCharsets.UTF_8))
-            .toString()
-            .replace("-", "")
+        return user.minecraftProfileId
     }
 
     private fun findUserByProfileId(profileId: String): User? {
         val normalized = normalizeProfileId(profileId)
-        return userRepository.findAll().firstOrNull { profileId(it) == normalized }
+        return userRepository.findByMinecraftProfileId(normalized).orElse(null)
     }
 
     private fun normalizeProfileId(profileId: String): String {
@@ -514,7 +511,12 @@ class MinecraftService(
         val hash = "sha256:$digest"
         return blobRepository.findByHash(hash).orElseGet {
             val requestedKey = "blobs/sha256/${digest.take(2)}/$digest.png"
-            val storageKey = storageService.upload(requestedKey, ByteArrayInputStream(bytes), MediaType.IMAGE_PNG_VALUE)
+            val storageKey = storageService.upload(
+                requestedKey,
+                ByteArrayInputStream(bytes),
+                bytes.size.toLong(),
+                MediaType.IMAGE_PNG_VALUE
+            )
             blobRepository.save(
                 Blob(hash = hash, algorithm = "SHA-256", sizeBytes = bytes.size.toLong(), storageKey = storageKey)
             )

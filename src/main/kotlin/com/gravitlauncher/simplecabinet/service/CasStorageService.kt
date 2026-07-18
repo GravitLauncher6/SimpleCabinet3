@@ -22,8 +22,9 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
-import java.io.ByteArrayInputStream
+import java.io.BufferedInputStream
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.time.Instant
 
@@ -68,6 +69,9 @@ class CasStorageService(
                 "Storage key already exists: $storageKey"
             )
         }
+        if (!storageService.exists(storageKey)) {
+            throw InvalidInputException(message = "Storage object does not exist: $storageKey")
+        }
 
         return toBlobResponse(
             blobRepository.save(
@@ -95,31 +99,54 @@ class CasStorageService(
             throw InvalidInputException(message = "File is required")
         }
 
-        val bytes = file.bytes
-        val digest = MessageDigest.getInstance(SHA_256).digest(bytes).toHex()
-        val hash = "sha256:$digest"
-        val existingBlob = blobRepository.findByHash(hash).orElse(null)
-        if (existingBlob != null) {
-            return toBlobResponse(existingBlob)
-        }
+        val temporaryFile = Files.createTempFile("simplecabinet-cas-", ".upload")
+        try {
+            val messageDigest = MessageDigest.getInstance(SHA_256)
+            var sizeBytes = 0L
+            file.inputStream.use { rawInput ->
+                BufferedInputStream(rawInput).use { input ->
+                    Files.newOutputStream(temporaryFile).use { output ->
+                        val buffer = ByteArray(STREAM_BUFFER_SIZE)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            messageDigest.update(buffer, 0, read)
+                            output.write(buffer, 0, read)
+                            sizeBytes += read
+                        }
+                    }
+                }
+            }
 
-        val requestedKey = "blobs/sha256/${digest.take(2)}/${digest.substring(2, 4)}/$digest"
-        val storageKey = storageService.upload(
-            requestedKey,
-            ByteArrayInputStream(bytes),
-            file.contentType ?: MediaType.APPLICATION_OCTET_STREAM_VALUE
-        )
+            val digest = messageDigest.digest().toHex()
+            val hash = "sha256:$digest"
+            val existingBlob = blobRepository.findByHash(hash).orElse(null)
+            if (existingBlob != null) {
+                return toBlobResponse(existingBlob)
+            }
 
-        return toBlobResponse(
-            blobRepository.save(
-                Blob(
-                    hash = hash,
-                    algorithm = SHA_256,
-                    sizeBytes = bytes.size.toLong(),
-                    storageKey = storageKey
+            val requestedKey = "blobs/sha256/${digest.take(2)}/${digest.substring(2, 4)}/$digest"
+            val storageKey = Files.newInputStream(temporaryFile).use { input ->
+                storageService.upload(
+                    requestedKey,
+                    input,
+                    sizeBytes,
+                    file.contentType ?: MediaType.APPLICATION_OCTET_STREAM_VALUE
+                )
+            }
+            return toBlobResponse(
+                blobRepository.save(
+                    Blob(
+                        hash = hash,
+                        algorithm = SHA_256,
+                        sizeBytes = sizeBytes,
+                        storageKey = storageKey
+                    )
                 )
             )
-        )
+        } finally {
+            Files.deleteIfExists(temporaryFile)
+        }
     }
 
     @Transactional
@@ -442,5 +469,6 @@ class CasStorageService(
 
     private companion object {
         const val SHA_256 = "SHA-256"
+        const val STREAM_BUFFER_SIZE = 64 * 1024
     }
 }

@@ -22,7 +22,12 @@ class LocalFileStorageService(
         }
     }
 
-    override fun upload(filename: String, inputStream: InputStream, contentType: String?): String {
+    override fun upload(
+        filename: String,
+        inputStream: InputStream,
+        contentLength: Long,
+        contentType: String?
+    ): String {
         try {
             if (filename.contains("..")) {
                 throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot store file with relative path outside current directory")
@@ -57,10 +62,26 @@ class LocalFileStorageService(
         }
     }
 
+    override fun delete(filename: String) {
+        val file = resolveFile(filename)
+        Files.deleteIfExists(file)
+    }
+
     override fun getUrl(filename: String): String {
         // For local storage, return a URL that can be served by the application
         // Format: /files/{filename}
         val baseUrl = storageProperties.local.baseUrl
         return "$baseUrl/$filename"
+    }
+
+    private fun resolveFile(filename: String): Path {
+        if (filename.contains("..")) {
+            throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot access a relative path outside storage")
+        }
+        val file = rootLocation.resolve(Paths.get(filename)).normalize().toAbsolutePath()
+        if (!file.startsWith(rootLocation.toAbsolutePath())) {
+            throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot access a file outside storage")
+        }
+        return file
     }
 }

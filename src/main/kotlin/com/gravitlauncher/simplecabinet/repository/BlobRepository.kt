@@ -8,4 +8,5 @@ interface BlobRepository : JpaRepository<Blob, Long> {
     fun findByHash(hash: String): Optional<Blob>
     fun findByStorageKey(storageKey: String): Optional<Blob>
     fun existsByHash(hash: String): Boolean
+    fun existsByStorageKey(storageKey: String): Boolean
 }

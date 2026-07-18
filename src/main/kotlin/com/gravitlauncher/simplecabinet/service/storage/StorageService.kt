@@ -10,7 +10,12 @@ interface StorageService {
      * @param contentType The MIME type of the file (optional)
      * @return The storage path/key of the uploaded file
      */
-    fun upload(filename: String, inputStream: InputStream, contentType: String? = null): String
+    fun upload(
+        filename: String,
+        inputStream: InputStream,
+        contentLength: Long,
+        contentType: String? = null
+    ): String
 
     /**
      * Check if a file exists in storage
@@ -18,6 +23,8 @@ interface StorageService {
      * @return true if the file exists, false otherwise
      */
     fun exists(filename: String): Boolean
+
+    fun delete(filename: String)
 
     /**
      * Get the URL of a file without downloading it

@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import java.io.InputStream
 import java.net.URI
 
@@ -35,7 +36,12 @@ class S3StorageService(
         s3Client = clientBuilder.build()
     }
 
-    override fun upload(filename: String, inputStream: InputStream, contentType: String?): String {
+    override fun upload(
+        filename: String,
+        inputStream: InputStream,
+        contentLength: Long,
+        contentType: String?
+    ): String {
         try {
             val bucket = storageProperties.s3.bucket
             val key = if (storageProperties.s3.prefix.isNotEmpty()) {
@@ -55,14 +61,22 @@ class S3StorageService(
             val putObjectRequest = requestBuilder.build()
 
             inputStream.use { input ->
-                val bytes = input.readAllBytes()
-                s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes))
+                s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(input, contentLength))
             }
 
             return filename
         } catch (e: Exception) {
             throw RuntimeException("Failed to upload file to S3: ${e.message}", e)
         }
+    }
+
+    override fun delete(filename: String) {
+        s3Client.deleteObject(
+            DeleteObjectRequest.builder()
+                .bucket(storageProperties.s3.bucket)
+                .key(resolveKey(filename))
+                .build()
+        )
     }
 
     override fun exists(filename: String): Boolean {

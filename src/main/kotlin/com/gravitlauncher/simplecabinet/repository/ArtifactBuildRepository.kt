@@ -7,4 +7,5 @@ import java.util.Optional
 interface ArtifactBuildRepository : JpaRepository<ArtifactBuild, Long> {
     fun findByVariant(variant: String): Optional<ArtifactBuild>
     fun findByPublicKey(publicKey: String): Optional<ArtifactBuild>
+    fun existsByStorageKey(storageKey: String): Boolean
 }

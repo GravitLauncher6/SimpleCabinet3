@@ -10,12 +10,15 @@ import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.repository.ArtifactBuildRepository
 import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
+import com.gravitlauncher.simplecabinet.service.storage.StorageReferenceService
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
 import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
 import java.security.PrivateKey
 import java.security.PublicKey
@@ -28,7 +31,8 @@ import java.util.UUID
 @Service
 class ArtifactUpdateService(
     private val artifactBuildRepository: ArtifactBuildRepository,
-    private val storageService: com.gravitlauncher.simplecabinet.service.storage.StorageService
+    private val storageService: com.gravitlauncher.simplecabinet.service.storage.StorageService,
+    private val storageReferenceService: StorageReferenceService
 ) {
 
     @Value("\${jwt.private-key}")
@@ -127,8 +131,9 @@ class ArtifactUpdateService(
         val storageKey = buildStorageKey(normalizedVariant, originalFilename)
 
         val uploadedStorageKey = file.inputStream.use { inputStream ->
-            storageService.upload(storageKey, inputStream, file.contentType)
+            storageService.upload(storageKey, inputStream, file.size, file.contentType)
         }
+        registerRollbackCleanup(uploadedStorageKey)
         val url = storageService.getUrl(uploadedStorageKey)
         val now = Instant.now()
 
@@ -251,6 +256,16 @@ class ArtifactUpdateService(
         } catch (_: Exception) {
             throw InvalidInputException(message = "Invalid update key pair")
         }
+    }
+
+    private fun registerRollbackCleanup(uploadedStorageKey: String) {
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCompletion(status: Int) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                    runCatching { storageReferenceService.deleteIfUnreferenced(uploadedStorageKey) }
+                }
+            }
+        })
     }
 
     companion object {

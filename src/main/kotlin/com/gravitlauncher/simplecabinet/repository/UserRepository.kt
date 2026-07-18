@@ -9,6 +9,8 @@ import java.util.*
 interface UserRepository : JpaRepository<User, Long> {
     fun findByUsername(username: String): Optional<User>
     fun findByEmail(email: String): Optional<User>
+    fun findByMinecraftProfileId(minecraftProfileId: String): Optional<User>
+    fun findAllByUsernameIn(usernames: Collection<String>): List<User>
     fun findByExternalProviderIdAndExternalSubject(providerId: String, subject: String): Optional<User>
     fun existsByUsername(username: String): Boolean
     fun existsByEmail(email: String): Boolean

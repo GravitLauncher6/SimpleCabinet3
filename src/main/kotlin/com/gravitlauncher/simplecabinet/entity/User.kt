@@ -2,6 +2,7 @@ package com.gravitlauncher.simplecabinet.entity
 
 import jakarta.persistence.*
 import java.time.LocalDateTime
+import java.util.UUID
 
 @Entity
 @Table(
@@ -23,6 +24,9 @@ data class User(
 
     @Column(unique = true, nullable = false, length = 255)
     val email: String,
+
+    @Column(name = "minecraft_profile_id", unique = true, nullable = false, length = 32)
+    val minecraftProfileId: String = UUID.randomUUID().toString().replace("-", ""),
 
     @Column(nullable = false)
     val password: String,
