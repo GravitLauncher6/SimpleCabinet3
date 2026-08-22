@@ -57,6 +57,12 @@ class CasController(
         return ResponseEntity.ok(casStorageService.getDirectory(directoryKey))
     }
 
+    @GetMapping("/directories/list ")
+    @RequireAuth
+    fun getDirectories(): ResponseEntity<List<DirectoryResponse>> {
+        return ResponseEntity.ok(casStorageService.getDirectories())
+    }
+
     @GetMapping("/branches")
     @RequireAuth
     fun listBranches(@RequestParam @NotBlank directoryKey: String): ResponseEntity<List<DirectoryBranchResponse>> {

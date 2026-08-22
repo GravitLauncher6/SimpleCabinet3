@@ -178,6 +178,11 @@ class CasStorageService(
     }
 
     @Transactional(readOnly = true)
+    fun getDirectories(): List<DirectoryResponse> {
+        return casDirectoryRepository.findAll().map { toDirectoryResponse(it) };
+    }
+
+    @Transactional(readOnly = true)
     fun listBranches(directoryKey: String): List<DirectoryBranchResponse> {
         val directory = getDirectoryEntity(directoryKey)
         return directoryBranchRepository.findAllByDirectoryId(directory.id!!)
