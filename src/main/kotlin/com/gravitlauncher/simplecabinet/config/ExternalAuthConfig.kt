@@ -1,6 +1,7 @@
 package com.gravitlauncher.simplecabinet.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gravitlauncher.simplecabinet.service.auth.*
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -12,6 +13,9 @@ import org.springframework.security.crypto.password.PasswordEncoder
 @Configuration
 @EnableConfigurationProperties(ExternalAuthProperties::class)
 class ExternalAuthConfig {
+    @Bean
+    fun externalAuthObjectMapper(): ObjectMapper = jacksonObjectMapper()
+
     @Bean
     @ConditionalOnProperty(prefix = "external-auth", name = ["enabled"], havingValue = "true")
     fun externalSessionStateCipher(

@@ -59,6 +59,31 @@ class SqlExternalAuthProviderTest {
         assertNull(provider.authenticate(ExternalPasswordAuthentication("alice", "secret")))
     }
 
+    @Test
+    fun `rejects invalid credentials and disabled users`() {
+        val provider = provider()
+
+        assertNull(provider.authenticate(ExternalPasswordAuthentication("alice", "wrong")))
+
+        DriverManager.getConnection(jdbcUrl, "sa", "").use {
+            it.createStatement().execute("UPDATE external_users SET active = FALSE WHERE user_id = '42'")
+        }
+        assertNull(provider.authenticate(ExternalPasswordAuthentication("alice", "secret")))
+    }
+
+    @Test
+    fun `returns reauthentication when external identity does not exist`() {
+        val provider = provider()
+
+        assertSame(
+            ExternalSessionValidation.ReauthenticationRequired,
+            provider.validateSession(
+                ExternalIdentityReference("legacy", "missing"),
+                ExternalSessionState("credential-fingerprint", "state")
+            )
+        )
+    }
+
     private fun provider() = SqlExternalAuthProvider(
         "legacy",
         SqlExternalAuthProperties(

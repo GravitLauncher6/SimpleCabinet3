@@ -198,8 +198,13 @@ class MinecraftService(
     @Transactional
     fun joinServer(request: MinecraftJoinRequest) {
         val session = resolveSessionFromAccessToken(request.accessToken)
-        val selectedProfile = normalizeProfileId(request.selectedProfile)
-        if (selectedProfile != profileId(session.user)) {
+        val selectedProfile = request.selectedProfile.trim()
+        val matchesProfile = if (selectedProfile.matches(Regex("^[0-9a-fA-F-]{32,36}$"))) {
+            normalizeProfileId(selectedProfile) == profileId(session.user)
+        } else {
+            selectedProfile.equals(session.user.username, ignoreCase = true)
+        }
+        if (!matchesProfile) {
             throw InvalidInputException(message = "Selected profile does not match access token")
         }
 
