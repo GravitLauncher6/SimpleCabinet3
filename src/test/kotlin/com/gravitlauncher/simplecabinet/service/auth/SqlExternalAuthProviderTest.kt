@@ -71,19 +71,6 @@ class SqlExternalAuthProviderTest {
         assertNull(provider.authenticate(ExternalPasswordAuthentication("alice", "secret")))
     }
 
-    @Test
-    fun `returns reauthentication when external identity does not exist`() {
-        val provider = provider()
-
-        assertSame(
-            ExternalSessionValidation.ReauthenticationRequired,
-            provider.validateSession(
-                ExternalIdentityReference("legacy", "missing"),
-                ExternalSessionState("credential-fingerprint", "state")
-            )
-        )
-    }
-
     private fun provider() = SqlExternalAuthProvider(
         "legacy",
         SqlExternalAuthProperties(

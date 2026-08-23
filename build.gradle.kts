@@ -61,3 +61,9 @@ allOpen {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
+
+tasks.register("buildModules") {
+	group = "modules"
+	description = "Builds every runtime module under modules/"
+	dependsOn(provider { subprojects.mapNotNull { it.tasks.findByName("moduleJar") } })
+}
