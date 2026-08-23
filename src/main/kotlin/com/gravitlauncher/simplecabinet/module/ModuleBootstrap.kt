@@ -63,7 +63,10 @@ private object ModuleClassLoaderFactory {
             return ModuleClassLoaderResult(parent, emptyList(), emptyList())
         }
         val modules: List<File> = directory.listFiles()
-            ?.filter { file -> file.isDirectory || file.extension.equals("jar", true) }
+            ?.filter { file ->
+                file.extension.equals("jar", true) ||
+                    (file.isDirectory && !File(file, "build.gradle.kts").isFile && !File(file, "build.gradle").isFile)
+            }
             ?.sortedBy { file -> file.name }
             ?: emptyList()
         if (modules.isEmpty()) return ModuleClassLoaderResult(parent, emptyList(), emptyList())
@@ -83,13 +86,22 @@ private object ModuleClassLoaderFactory {
     private fun classesIn(module: File): Sequence<String> = sequence {
         if (module.isDirectory) {
             module.walkTopDown().filter { it.isFile && it.extension == "class" }.forEach {
-                yield(it.relativeTo(module).path.removeSuffix(".class").replace(File.separatorChar, '.'))
+                val className = it.relativeTo(module).path.removeSuffix(".class").replace(File.separatorChar, '.')
+                if (isLoadableClassName(className)) yield(className)
             }
         } else {
             JarFile(module).use { jar ->
-                jar.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }
-                    .forEach { yield(it.name.removeSuffix(".class").replace('/', '.')) }
+                jar.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.endsWith(".class") }
+                    .map { it.name.removeSuffix(".class").replace('/', '.') }
+                    .filter(::isLoadableClassName)
+                    .forEach { yield(it) }
             }
         }
     }
+
+    private fun isLoadableClassName(name: String): Boolean =
+        !name.startsWith("META-INF.") &&
+            !name.endsWith(".module-info") &&
+            name != "module-info"
 }
