@@ -85,10 +85,13 @@ class ArtifactUpdateService(
         val build = artifactBuildRepository.findByPublicKey(publicKeyString)
             .orElseThrow {
                 ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "Artifact build not found for public key")
-            }
+        }
 
         return if (build.deprecated) {
-            ArtifactUpdateVerifyResponse(updateRequired = true, url = build.url)
+            val currentBuild = artifactBuildRepository
+                .findFirstByVariantAndDeprecatedFalseOrderByUpdatedAtDesc(build.variant)
+                .orElse(build)
+            ArtifactUpdateVerifyResponse(updateRequired = true, url = currentBuild.url)
         } else {
             ArtifactUpdateVerifyResponse(
                 updateRequired = false,
@@ -137,33 +140,23 @@ class ArtifactUpdateService(
         val url = storageService.getUrl(uploadedStorageKey)
         val now = Instant.now()
 
-        val saved = artifactBuildRepository.findByVariant(normalizedVariant)
-            .map {
-                it.copy(
-                    storageKey = uploadedStorageKey,
-                    url = url,
-                    originalFilename = originalFilename,
-                    sizeBytes = file.size,
-                    publicKey = publicKeyString,
-                    privateKey = privateKeyString,
-                    deprecated = deprecated,
-                    updatedAt = now
-                )
-            }
-            .orElse(
-                ArtifactBuild(
-                    variant = normalizedVariant,
-                    storageKey = uploadedStorageKey,
-                    url = url,
-                    originalFilename = originalFilename,
-                    sizeBytes = file.size,
-                    publicKey = publicKeyString,
-                    privateKey = privateKeyString,
-                    deprecated = deprecated,
-                    createdAt = now,
-                    updatedAt = now
-                )
-            )
+        artifactBuildRepository.saveAll(
+            artifactBuildRepository.findAllByVariant(normalizedVariant)
+                .map { previous -> previous.copy(deprecated = true, updatedAt = now) }
+        )
+
+        val saved = ArtifactBuild(
+            variant = normalizedVariant,
+            storageKey = uploadedStorageKey,
+            url = url,
+            originalFilename = originalFilename,
+            sizeBytes = file.size,
+            publicKey = publicKeyString,
+            privateKey = privateKeyString,
+            deprecated = deprecated,
+            createdAt = now,
+            updatedAt = now
+        )
 
         val persisted = artifactBuildRepository.save(saved)
         return ArtifactUploadResponse(

@@ -4,9 +4,7 @@ import jakarta.persistence.*
 import java.time.Instant
 
 @Entity
-@Table(name = "artifact_builds", uniqueConstraints = [
-    UniqueConstraint(name = "uk_artifact_build_variant", columnNames = ["variant"])
-], indexes = [
+@Table(name = "artifact_builds", indexes = [
     Index(name = "idx_artifact_build_deprecated", columnList = "deprecated"),
     Index(name = "idx_artifact_build_public_key", columnList = "public_key")
 ])

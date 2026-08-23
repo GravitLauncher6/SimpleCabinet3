@@ -15,18 +15,25 @@ data class BlobResponse(
     val algorithm: String,
     val sizeBytes: Long,
     val storageKey: String,
+    val url: String = "",
     val createdAt: Instant
 )
 
 data class CreateDirectoryRequest(
     val key: String,
-    val name: String? = null
+    val name: String? = null,
+    val metadata: String = "{}"
+)
+
+data class UpdateDirectoryMetadataRequest(
+    val metadata: String
 )
 
 data class DirectoryResponse(
     val id: Long,
     val key: String,
     val name: String?,
+    val metadata: String,
     val createdAt: Instant
 )
 

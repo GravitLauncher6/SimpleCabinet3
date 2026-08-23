@@ -63,6 +63,15 @@ class CasController(
         return ResponseEntity.ok(casStorageService.getDirectories())
     }
 
+    @PatchMapping("/directories/metadata")
+    @RequirePermission("admin.cas.write")
+    fun updateDirectoryMetadata(
+        @RequestParam @NotBlank directoryKey: String,
+        @Valid @RequestBody request: UpdateDirectoryMetadataRequest
+    ): ResponseEntity<DirectoryResponse> {
+        return ResponseEntity.ok(casStorageService.updateDirectoryMetadata(directoryKey, request))
+    }
+
     @GetMapping("/branches")
     @RequireAuth
     fun listBranches(@RequestParam @NotBlank directoryKey: String): ResponseEntity<List<DirectoryBranchResponse>> {

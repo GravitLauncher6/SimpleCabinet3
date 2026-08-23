@@ -177,7 +177,7 @@ class ArtifactUpdateServiceTest {
     private fun sign(challenge: String, keyPair: KeyPair): String {
         val signer = Signature.getInstance("SHA256withECDSA")
         signer.initSign(keyPair.private)
-        signer.update(challenge.toByteArray(Charsets.UTF_8))
+        signer.update(Base64.getDecoder().decode(challenge))
         return Base64.getEncoder().encodeToString(signer.sign())
     }
 

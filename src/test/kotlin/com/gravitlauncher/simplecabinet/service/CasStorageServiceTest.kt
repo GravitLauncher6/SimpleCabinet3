@@ -64,7 +64,7 @@ class CasStorageServiceTest {
         val latest = casStorageService.getLatestVersion(directory.key, "main")
         assertEquals(published.id, latest.id)
         assertEquals("main", latest.branchName)
-        assertEquals("{" + "\"files\":[{" + "\"path\":\"a.txt\",\"hash\":\"sha256:file-a\",\"size\":128,\"storageKey\":\"blobs/sha256/fi/le/file-a\"},{\"path\":\"b.txt\",\"hash\":\"sha256:file-b\",\"size\":256,\"storageKey\":\"blobs/sha256/fi/le/file-b\"}]}", latest.manifest)
+        assertEquals("{" + "\"files\":[{" + "\"path\":\"a.txt\",\"hash\":\"sha256:file-a\",\"size\":128,\"storageKey\":\"blobs/sha256/fi/le/file-a\",\"url\":\"http://localhost:8080/files/blobs/sha256/fi/le/file-a\"},{\"path\":\"b.txt\",\"hash\":\"sha256:file-b\",\"size\":256,\"storageKey\":\"blobs/sha256/fi/le/file-b\",\"url\":\"http://localhost:8080/files/blobs/sha256/fi/le/file-b\"}]}", latest.manifest)
         assertEquals("{\"tool\":\"publisher\",\"build\":1}", latest.metadata)
         assertEquals(42L, latest.createdBy)
     }

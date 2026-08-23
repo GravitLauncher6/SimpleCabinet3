@@ -422,7 +422,8 @@ class MinecraftService(
     private fun toLookupProfile(user: User): MinecraftLookupProfileResponse {
         return MinecraftLookupProfileResponse(
             id = profileId(user),
-            name = user.username
+            name = user.username,
+            properties = toSessionProfile(user, includeSignature = false).properties
         )
     }
 
@@ -432,14 +433,20 @@ class MinecraftService(
         val cape = activeAsset(userId, UserAssetType.CAPE)
         val textures = linkedMapOf<String, Any>()
         if (skin != null) {
-            val skinTexture = linkedMapOf<String, Any>("url" to storageService.getUrl(skin.blob.storageKey))
+            val skinTexture = linkedMapOf<String, Any>(
+                "url" to storageService.getUrl(skin.blob.storageKey),
+                "hash" to skin.blob.hash.removePrefix("sha256:")
+            )
             if (skin.variant == "SLIM") {
                 skinTexture["metadata"] = mapOf("model" to "slim")
             }
             textures["SKIN"] = skinTexture
         }
         if (cape != null) {
-            textures["CAPE"] = mapOf("url" to storageService.getUrl(cape.blob.storageKey))
+            textures["CAPE"] = mapOf(
+                "url" to storageService.getUrl(cape.blob.storageKey),
+                "hash" to cape.blob.hash.removePrefix("sha256:")
+            )
         }
         val texturePayload = linkedMapOf<String, Any>(
             "timestamp" to System.currentTimeMillis(),

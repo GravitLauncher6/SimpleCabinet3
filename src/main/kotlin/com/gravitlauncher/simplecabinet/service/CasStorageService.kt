@@ -169,7 +169,10 @@ class CasStorageService(
             throw DuplicateResourceException(ErrorCode.DUPLICATE_RESOURCE, "Directory already exists: $key")
         }
 
-        return toDirectoryResponse(casDirectoryRepository.save(CasDirectory(key = key, name = name)))
+        val metadata = canonicalizeMetadata(request.metadata)
+        return toDirectoryResponse(
+            casDirectoryRepository.save(CasDirectory(key = key, name = name, metadata = metadata))
+        )
     }
 
     @Transactional(readOnly = true)
@@ -180,6 +183,13 @@ class CasStorageService(
     @Transactional(readOnly = true)
     fun getDirectories(): List<DirectoryResponse> {
         return casDirectoryRepository.findAll().map { toDirectoryResponse(it) };
+    }
+
+    @Transactional
+    fun updateDirectoryMetadata(key: String, request: UpdateDirectoryMetadataRequest): DirectoryResponse {
+        val directory = getDirectoryEntity(key)
+        val metadata = canonicalizeMetadata(request.metadata)
+        return toDirectoryResponse(casDirectoryRepository.save(directory.copy(metadata = metadata)))
     }
 
     @Transactional(readOnly = true)
@@ -370,7 +380,13 @@ class CasStorageService(
                 )
             }
 
-            CanonicalManifestFile(path = path, hash = hash, size = size, storageKey = storageKey)
+            CanonicalManifestFile(
+                path = path,
+                hash = hash,
+                size = size,
+                storageKey = storageKey,
+                url = storageService.getUrl(storageKey)
+            )
         }
 
         val duplicatePaths = files.groupingBy { it.path }.eachCount().filterValues { it > 1 }.keys
@@ -387,6 +403,7 @@ class CasStorageService(
                     .put("hash", file.hash)
                     .put("size", file.size)
                     .put("storageKey", file.storageKey)
+                    .put("url", file.url)
             )
         }
         root.set<ArrayNode>("files", normalizedFiles)
@@ -421,6 +438,7 @@ class CasStorageService(
             algorithm = blob.algorithm,
             sizeBytes = blob.sizeBytes,
             storageKey = blob.storageKey,
+            url = storageService.getUrl(blob.storageKey),
             createdAt = blob.createdAt
         )
     }
@@ -430,6 +448,7 @@ class CasStorageService(
             id = directory.id ?: error("directory id missing"),
             key = directory.key,
             name = directory.name,
+            metadata = directory.metadata,
             createdAt = directory.createdAt
         )
     }
@@ -467,7 +486,8 @@ class CasStorageService(
         val path: String,
         val hash: String,
         val size: Long,
-        val storageKey: String
+        val storageKey: String,
+        val url: String = ""
     )
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }

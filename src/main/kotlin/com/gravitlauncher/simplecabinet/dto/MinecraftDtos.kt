@@ -27,7 +27,8 @@ data class MinecraftCapeActivationRequest(
 
 data class MinecraftLookupProfileResponse(
     val id: String,
-    val name: String
+    val name: String,
+    val properties: List<MinecraftSessionPropertyResponse> = emptyList()
 )
 
 data class MinecraftPlayerAttributesResponse(

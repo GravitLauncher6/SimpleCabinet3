@@ -16,6 +16,9 @@ data class CasDirectory(
     @Column(length = 255)
     val name: String? = null,
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    val metadata: String = "{}",
+
     @Column(nullable = false)
     val createdAt: Instant = Instant.now()
 )
