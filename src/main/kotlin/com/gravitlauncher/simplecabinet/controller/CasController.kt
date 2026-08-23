@@ -57,7 +57,7 @@ class CasController(
         return ResponseEntity.ok(casStorageService.getDirectory(directoryKey))
     }
 
-    @GetMapping("/directories/list ")
+    @GetMapping("/directories/list")
     @RequireAuth
     fun getDirectories(): ResponseEntity<List<DirectoryResponse>> {
         return ResponseEntity.ok(casStorageService.getDirectories())

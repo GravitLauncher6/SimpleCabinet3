@@ -75,7 +75,7 @@ class ArtifactUpdateService(
         val updatePublicKey = loadPublicKey(publicKeyString)
 
         val claims = parseAndValidatePrepareToken(request.token)
-        val challenge = claims["challenge"] as? String
+        val challenge = Base64.getDecoder().decode(claims["challenge"] as? String)
             ?: throw InvalidInputException(message = "Prepare token missing challenge")
 
         if (!verifySignature(challenge, request.signature, updatePublicKey)) {
@@ -194,11 +194,11 @@ class ArtifactUpdateService(
         return claims
     }
 
-    private fun verifySignature(challenge: String, signature: String, updatePublicKey: PublicKey): Boolean {
+    private fun verifySignature(challenge: ByteArray, signature: String, updatePublicKey: PublicKey): Boolean {
         return try {
             val verifier = Signature.getInstance("SHA256withECDSA")
             verifier.initVerify(updatePublicKey)
-            verifier.update(challenge.toByteArray(Charsets.UTF_8))
+            verifier.update(challenge)
             verifier.verify(Base64.getDecoder().decode(signature))
         } catch (_: Exception) {
             false
