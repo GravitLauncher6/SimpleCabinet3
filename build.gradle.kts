@@ -4,6 +4,7 @@ plugins {
 	id("org.springframework.boot") version "4.0.6"
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("plugin.jpa") version "2.2.21"
+	id("maven-publish")
 }
 
 group = "com.gravitlauncher"
@@ -60,6 +61,35 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+publishing {
+	publications {
+		create<MavenPublication>("mavenJava") {
+			from(components["java"])
+		}
+	}
+
+	// `publishToMavenLocal` does not need a repository configuration. Add the
+	// remote/local file repository only when the caller supplies its location.
+	val mavenUrl = providers.gradleProperty("maven.url")
+		.orElse(providers.systemProperty("maven.url"))
+	if (mavenUrl.isPresent) {
+		repositories {
+			maven {
+				name = "configuredMaven"
+				url = uri(mavenUrl.get())
+				credentials {
+					username = providers.gradleProperty("maven.user")
+						.orElse(providers.systemProperty("maven.user"))
+						.orNull
+					password = providers.gradleProperty("maven.password")
+						.orElse(providers.systemProperty("maven.password"))
+						.orNull
+				}
+			}
+		}
+	}
 }
 
 tasks.register("buildModules") {

@@ -33,8 +33,8 @@ data class SqlExternalAuthProperties(
     val subjectColumn: String = "id",
     val usernameColumn: String = "username",
     val passwordColumn: String = "password",
-    val emailColumn: String = "email",
-    val rolesColumn: String = "roles",
+    val emailColumn: String = "",
+    val rolesColumn: String = "",
     val enabledColumn: String = "",
     val roleSeparator: String = ",",
     val passwordEncoding: ExternalPasswordEncoding = ExternalPasswordEncoding.BCRYPT

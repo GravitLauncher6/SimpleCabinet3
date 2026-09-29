@@ -1,6 +1,7 @@
 plugins {
 	kotlin("jvm") version "2.2.21"
 	kotlin("plugin.spring") version "2.2.21"
+	id("maven-publish")
 }
 
 group = "com.gravitlauncher.simplecabinet.modules"
@@ -44,3 +45,34 @@ val moduleJar = tasks.register<Jar>("moduleJar") {
 }
 
 tasks.assemble { dependsOn(moduleJar) }
+
+publishing {
+	publications {
+		create<MavenPublication>("mavenJava") {
+			artifact(moduleJar)
+			pom {
+				name = project.name
+				description = "Deployable runtime module for Simple Cabinet"
+			}
+		}
+	}
+
+	val mavenUrl = providers.gradleProperty("maven.url")
+		.orElse(providers.systemProperty("maven.url"))
+	if (mavenUrl.isPresent) {
+		repositories {
+			maven {
+				name = "configuredMaven"
+				url = uri(mavenUrl.get())
+				credentials {
+					username = providers.gradleProperty("maven.user")
+						.orElse(providers.systemProperty("maven.user"))
+						.orNull
+					password = providers.gradleProperty("maven.password")
+						.orElse(providers.systemProperty("maven.password"))
+						.orNull
+				}
+			}
+		}
+	}
+}
