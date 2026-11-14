@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.mock.web.MockMultipartFile
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
+import java.security.MessageDigest
 import java.io.ByteArrayInputStream
 
 @SpringBootTest
@@ -163,6 +166,62 @@ class CasStorageServiceTest {
             )
         }
     }
+
+    @Test
+    fun `bulk upload preserves order and deduplicates content`() {
+        val firstContent = "cas-bulk-first".toByteArray()
+        val secondContent = "cas-bulk-second".toByteArray()
+        val responses = casStorageService.bulkUpload(
+            listOf(
+                MockMultipartFile("files", "first.txt", "text/plain", firstContent),
+                MockMultipartFile("files", "second.txt", "text/plain", secondContent),
+                MockMultipartFile("files", "duplicate.txt", "text/plain", firstContent)
+            )
+        )
+
+        assertEquals(listOf(hash(firstContent), hash(secondContent), hash(firstContent)), responses.map { it.hash })
+        assertEquals(firstContent.size.toLong(), responses[0].sizeBytes)
+        assertEquals(secondContent.size.toLong(), responses[1].sizeBytes)
+        assertEquals(responses[0].id, responses[2].id)
+        responses.forEach { response ->
+            val storedResponse = casStorageService.getBlobByHash(response.hash)
+            assertEquals(response.id, storedResponse.id)
+            assertEquals(response.hash, storedResponse.hash)
+            assertEquals(response.algorithm, storedResponse.algorithm)
+            assertEquals(response.sizeBytes, storedResponse.sizeBytes)
+            assertEquals(response.storageKey, storedResponse.storageKey)
+            assertEquals(response.url, storedResponse.url)
+            assertEquals(true, storageService.exists(response.storageKey))
+        }
+    }
+
+    @Test
+    fun `bulk upload rejects an empty batch`() {
+        assertThrows(InvalidInputException::class.java) {
+            casStorageService.bulkUpload(emptyList())
+        }
+    }
+
+    @Test
+    fun `bulk upload validates every file before storing any content`() {
+        val content = "cas-bulk-invalid-batch".toByteArray()
+        assertThrows(InvalidInputException::class.java) {
+            casStorageService.bulkUpload(
+                listOf(
+                    MockMultipartFile("files", "valid.txt", "text/plain", content),
+                    MockMultipartFile("files", "empty.txt", "text/plain", byteArrayOf())
+                )
+            )
+        }
+        val digest = hash(content).removePrefix("sha256:")
+        assertEquals(false, storageService.exists("blobs/sha256/${digest.take(2)}/${digest.substring(2, 4)}/$digest"))
+        assertThrows(ResourceNotFoundException::class.java) {
+            casStorageService.getBlobByHash(hash(content))
+        }
+    }
+
+    private fun hash(content: ByteArray): String =
+        "sha256:" + MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it) }
 
     private fun registerBlob(request: BlobRegistrationRequest) {
         val content = ByteArray(request.sizeBytes.toInt())

@@ -53,6 +53,20 @@ class JwtUtil {
             .compact()
     }
 
+    fun generateNonExpiringToken(username: String, role: String, sessionToken: String): String {
+        val claims = hashMapOf<String, Any>(
+            "role" to role,
+            "sessionId" to sessionToken
+        )
+
+        return Jwts.builder()
+            .claims(claims)
+            .subject(username)
+            .issuedAt(Date())
+            .signWith(getPrivateKey())
+            .compact()
+    }
+
     fun extractUsername(token: String): String {
         return extractAllClaims(token).subject
     }
@@ -72,7 +86,8 @@ class JwtUtil {
     }
 
     private fun isTokenExpired(token: String): Boolean {
-        return extractAllClaims(token).expiration.before(Date())
+        // JWT expiration is optional. Treat a missing exp claim as non-expiring.
+        return extractAllClaims(token).expiration?.before(Date()) ?: false
     }
 
     private fun extractAllClaims(token: String): Claims {

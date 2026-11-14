@@ -154,6 +154,9 @@ class CasStorageService(
         if (files.isEmpty()) {
             throw InvalidInputException(message = "At least one file is required")
         }
+        if (files.any { it.isEmpty }) {
+            throw InvalidInputException(message = "Files must not be empty")
+        }
         return files.map(::upload)
     }
 
