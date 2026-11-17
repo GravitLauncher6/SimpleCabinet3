@@ -8,10 +8,12 @@ import com.gravitlauncher.simplecabinet.entity.ArtifactBuild
 import com.gravitlauncher.simplecabinet.exception.ErrorCode
 import com.gravitlauncher.simplecabinet.exception.InvalidInputException
 import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
+import com.gravitlauncher.simplecabinet.exception.UnauthorizedException
 import com.gravitlauncher.simplecabinet.repository.ArtifactBuildRepository
 import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
 import com.gravitlauncher.simplecabinet.service.storage.StorageReferenceService
 import io.jsonwebtoken.Claims
+import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
@@ -105,6 +107,30 @@ class ArtifactUpdateService(
                     .signWith(privateKey)
                     .compact()
             )
+        }
+    }
+
+    fun validateVerifiedToken(token: String?) {
+        if (token.isNullOrBlank()) {
+            throw UnauthorizedException(message = "Launcher update token required")
+        }
+
+        val claims = try {
+            Jwts.parser()
+                .verifyWith(publicKey)
+                .build()
+                .parseSignedClaims(token)
+                .payload
+        } catch (_: JwtException) {
+            throw UnauthorizedException(message = "Invalid launcher update token")
+        } catch (_: IllegalArgumentException) {
+            throw UnauthorizedException(message = "Invalid launcher update token")
+        }
+
+        if (claims.subject != "artifact-update-verified" || claims["type"] != "artifact-update-verified" ||
+            claims.expiration == null
+        ) {
+            throw UnauthorizedException(message = "Invalid launcher update token")
         }
     }
 

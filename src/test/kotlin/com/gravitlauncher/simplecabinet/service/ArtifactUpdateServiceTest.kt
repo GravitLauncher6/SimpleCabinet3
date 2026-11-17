@@ -52,6 +52,7 @@ class ArtifactUpdateServiceTest {
 
         assertFalse(response.updateRequired)
         assertNotNull(response.verifiedToken)
+        artifactUpdateService.validateVerifiedToken(response.verifiedToken)
     }
 
     @Test

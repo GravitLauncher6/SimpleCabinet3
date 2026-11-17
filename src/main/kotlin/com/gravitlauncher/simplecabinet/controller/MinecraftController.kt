@@ -1,6 +1,7 @@
 package com.gravitlauncher.simplecabinet.controller
 
 import com.gravitlauncher.simplecabinet.annotation.RequireAuth
+import com.gravitlauncher.simplecabinet.annotation.RequireLauncherUpdateToken
 import com.gravitlauncher.simplecabinet.dto.*
 import com.gravitlauncher.simplecabinet.service.MinecraftService
 import jakarta.validation.Valid
@@ -149,6 +150,7 @@ class MinecraftController(
     }
 
     @PostMapping("/sessionserver/session/minecraft/join")
+    @RequireLauncherUpdateToken
     fun joinServer(@Valid @RequestBody request: MinecraftJoinRequest): ResponseEntity<Void> {
         minecraftService.joinServer(request)
         return ResponseEntity.noContent().build()
