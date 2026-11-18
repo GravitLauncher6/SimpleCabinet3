@@ -6,7 +6,6 @@ import com.gravitlauncher.simplecabinet.dto.*
 import com.gravitlauncher.simplecabinet.service.CasStorageService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -55,6 +54,13 @@ class CasController(
     @RequireAuth
     fun getDirectory(@RequestParam @NotBlank directoryKey: String): ResponseEntity<DirectoryResponse> {
         return ResponseEntity.ok(casStorageService.getDirectory(directoryKey))
+    }
+
+    @DeleteMapping("/directories")
+    @RequirePermission("admin.cas.write")
+    fun deleteDirectory(@RequestParam @NotBlank directoryKey: String): ResponseEntity<Void> {
+        casStorageService.deleteDirectory(directoryKey)
+        return ResponseEntity.noContent().build()
     }
 
     @GetMapping("/directories/list")

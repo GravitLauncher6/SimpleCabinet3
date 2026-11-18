@@ -1,11 +1,19 @@
 package com.gravitlauncher.simplecabinet.repository
 
+import com.gravitlauncher.simplecabinet.dto.CreateDirectoryRequest
+import com.gravitlauncher.simplecabinet.dto.ForkDirectoryRequest
+import com.gravitlauncher.simplecabinet.dto.PublishDirectoryVersionRequest
 import com.gravitlauncher.simplecabinet.entity.Blob
 import com.gravitlauncher.simplecabinet.entity.CasDirectory
 import com.gravitlauncher.simplecabinet.entity.DirectoryBranch
 import com.gravitlauncher.simplecabinet.entity.DirectoryVersion
+import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
+import com.gravitlauncher.simplecabinet.service.CasStorageService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -24,6 +32,39 @@ class CasSchemaRepositoryTest {
 
     @Autowired
     private lateinit var directoryBranchRepository: DirectoryBranchRepository
+
+    @Autowired
+    private lateinit var casStorageService: CasStorageService
+
+    @Test
+    fun `deleting a directory removes its history and preserves forks and blobs`() {
+        val blob = blobRepository.save(
+            Blob(hash = "sha256:delete-test", algorithm = "SHA-256", sizeBytes = 3, storageKey = "blobs/delete-test")
+        )
+        val directory = casStorageService.createDirectory(CreateDirectoryRequest(key = "delete/source"))
+        val manifest = """
+            {"files":[{"path":"app.jar","hash":"${blob.hash}","size":${blob.sizeBytes},"storageKey":"${blob.storageKey}"}]}
+        """.trimIndent()
+        val publish = PublishDirectoryVersionRequest(directoryKey = directory.key, branchName = "main", manifest = manifest, metadata = "{}")
+        casStorageService.publishVersion(publish)
+        val head = casStorageService.publishVersion(publish)
+        val fork = casStorageService.forkDirectory(
+            ForkDirectoryRequest(sourceDirectoryKey = directory.key, sourceBranchName = "main", targetDirectoryKey = "delete/fork", targetBranchName = "main", metadata = "{}")
+        )
+        assertEquals(head.id, fork.parentVersionId)
+
+        casStorageService.deleteDirectory(" ${directory.key} ")
+
+        assertThrows(ResourceNotFoundException::class.java) { casStorageService.getDirectory(directory.key) }
+        assertThrows(ResourceNotFoundException::class.java) { casStorageService.deleteDirectory(directory.key) }
+        assertTrue(directoryVersionRepository.findAllByDirectoryIdOrderByCreatedAtDesc(directory.id).isEmpty())
+        assertTrue(directoryBranchRepository.findAllByDirectoryId(directory.id).isEmpty())
+        val survivingFork = casStorageService.getLatestVersion(fork.directoryKey, "main")
+        assertEquals(fork.id, survivingFork.id)
+        assertEquals(fork.manifest, survivingFork.manifest)
+        assertNull(survivingFork.parentVersionId)
+        assertEquals(blob.id, casStorageService.getBlobByHash(blob.hash).id)
+    }
 
     @Test
     fun `should persist directory versions and branch heads with json manifest and metadata`() {

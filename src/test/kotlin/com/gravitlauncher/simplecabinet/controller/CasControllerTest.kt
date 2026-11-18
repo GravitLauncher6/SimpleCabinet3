@@ -18,6 +18,7 @@ import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.context.web.WebAppConfiguration
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -46,6 +47,21 @@ class CasControllerTest {
     fun setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .build()
+    }
+
+    @Test
+    @WithMockUser(username = "writer", roles = ["ADMIN"])
+    fun `delete directory requires CAS write permission`() {
+        whenever(permissionService.isAuthenticated()).thenReturn(true)
+        val request = delete("/cas/directories").param("directoryKey", "project/a")
+
+        mockMvc.perform(request).andExpect(status().isForbidden)
+        verify(casStorageService, never()).deleteDirectory(any())
+
+        whenever(permissionService.hasPermission("admin.cas.write")).thenReturn(true)
+
+        mockMvc.perform(request).andExpect(status().isNoContent)
+        verify(casStorageService).deleteDirectory("project/a")
     }
 
     @Test

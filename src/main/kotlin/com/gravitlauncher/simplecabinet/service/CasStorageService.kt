@@ -178,6 +178,18 @@ class CasStorageService(
         )
     }
 
+    @Transactional
+    fun deleteDirectory(key: String) {
+        val directory = getDirectoryEntity(key, forUpdate = true)
+        val directoryId = requireNotNull(directory.id)
+        directoryBranchRepository.deleteByDirectoryId(directoryId)
+        directoryVersionRepository.findIdsByDirectoryId(directoryId).chunked(1000).forEach {
+            directoryVersionRepository.clearParentVersions(it)
+        }
+        directoryVersionRepository.deleteByDirectoryId(directoryId)
+        casDirectoryRepository.delete(directory)
+    }
+
     @Transactional(readOnly = true)
     fun getDirectory(key: String): DirectoryResponse {
         return toDirectoryResponse(getDirectoryEntity(key))
@@ -190,7 +202,7 @@ class CasStorageService(
 
     @Transactional
     fun updateDirectoryMetadata(key: String, request: UpdateDirectoryMetadataRequest): DirectoryResponse {
-        val directory = getDirectoryEntity(key)
+        val directory = getDirectoryEntity(key, forUpdate = true)
         val metadata = canonicalizeMetadata(request.metadata)
         return toDirectoryResponse(casDirectoryRepository.save(directory.copy(metadata = metadata)))
     }
@@ -204,7 +216,7 @@ class CasStorageService(
 
     @Transactional
     fun publishVersion(request: PublishDirectoryVersionRequest): DirectoryVersionResponse {
-        val directory = getDirectoryEntity(request.directoryKey)
+        val directory = getDirectoryEntity(request.directoryKey, forUpdate = true)
         val branchName = request.branchName.trim()
         if (branchName.isEmpty()) {
             throw InvalidInputException(message = "Branch name is required")
@@ -254,7 +266,10 @@ class CasStorageService(
 
     @Transactional(readOnly = true)
     fun getLatestVersion(directoryKey: String, branchName: String): DirectoryVersionResponse {
-        val directory = getDirectoryEntity(directoryKey)
+        return getLatestVersion(getDirectoryEntity(directoryKey), branchName)
+    }
+
+    private fun getLatestVersion(directory: CasDirectory, branchName: String): DirectoryVersionResponse {
         val branch = directoryBranchRepository.findByDirectoryIdAndName(directory.id!!, branchName.trim())
             .orElseThrow {
                 ResourceNotFoundException(
@@ -289,7 +304,8 @@ class CasStorageService(
 
     @Transactional
     fun forkDirectory(request: ForkDirectoryRequest): DirectoryVersionResponse {
-        val sourceVersion = getLatestVersion(request.sourceDirectoryKey, request.sourceBranchName)
+        val sourceDirectory = getDirectoryEntity(request.sourceDirectoryKey, forUpdate = true)
+        val sourceVersion = getLatestVersion(sourceDirectory, request.sourceBranchName)
         val targetDirectory = createDirectory(
             CreateDirectoryRequest(
                 key = request.targetDirectoryKey,
@@ -333,13 +349,17 @@ class CasStorageService(
         return toVersionResponse(forkVersion, request.targetBranchName.trim())
     }
 
-    private fun getDirectoryEntity(key: String): CasDirectory {
+    private fun getDirectoryEntity(key: String, forUpdate: Boolean = false): CasDirectory {
         val normalizedKey = key.trim()
         if (normalizedKey.isEmpty()) {
             throw InvalidInputException(message = "Directory key is required")
         }
-        return casDirectoryRepository.findByKey(normalizedKey)
-            .orElseThrow {
+        val directory = if (forUpdate) {
+            casDirectoryRepository.findByKeyForUpdate(normalizedKey)
+        } else {
+            casDirectoryRepository.findByKey(normalizedKey)
+        }
+        return directory.orElseThrow {
                 ResourceNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, "Directory not found: $normalizedKey")
             }
     }
