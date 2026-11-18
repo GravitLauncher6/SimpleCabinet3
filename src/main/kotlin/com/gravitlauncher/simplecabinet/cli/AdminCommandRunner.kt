@@ -1,9 +1,11 @@
 package com.gravitlauncher.simplecabinet.cli
 
+import com.gravitlauncher.simplecabinet.entity.Permission
 import com.gravitlauncher.simplecabinet.entity.Role
 import com.gravitlauncher.simplecabinet.entity.User
 import com.gravitlauncher.simplecabinet.entity.Session
 import com.gravitlauncher.simplecabinet.entity.UserRole
+import com.gravitlauncher.simplecabinet.repository.PermissionRepository
 import com.gravitlauncher.simplecabinet.repository.SessionRepository
 import com.gravitlauncher.simplecabinet.repository.RoleRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
@@ -27,6 +29,7 @@ import java.util.UUID
 class AdminCommandRunner(
     private val userRepository: UserRepository,
     private val roleRepository: RoleRepository,
+    private val permissionRepository: PermissionRepository,
     private val userRoleRepository: UserRoleRepository,
     private val passwordEncoder: PasswordEncoder,
     private val sessionRepository: SessionRepository,
@@ -110,6 +113,7 @@ class AdminCommandRunner(
         val adminRole = roleRepository.findByName("ADMIN").orElseGet {
             roleRepository.save(Role(name = "ADMIN", description = "Administrator"))
         }
+        ensureAdminPermissions(adminRole)
         userRoleRepository.save(UserRole(user = user, role = adminRole))
     }
 
@@ -123,9 +127,11 @@ class AdminCommandRunner(
     private fun createAdminToken(username: String): String {
         val user = userRepository.findByUsername(username)
             .orElseThrow { IllegalArgumentException("User not found: $username") }
-        require(userRoleRepository.findActiveByUser(user).any { it.role.name == "ADMIN" }) {
-            "User is not an active administrator: $username"
-        }
+        require(user.enabled) { "User is disabled: $username" }
+        val adminRole = userRoleRepository.findActiveByUser(user)
+            .firstOrNull { it.role.name == "ADMIN" }?.role
+        requireNotNull(adminRole) { "User is not an active administrator: $username" }
+        ensureAdminPermissions(adminRole)
 
         val sessionToken = "admin-token-${UUID.randomUUID()}"
         sessionRepository.save(
@@ -133,10 +139,16 @@ class AdminCommandRunner(
                 sessionToken = sessionToken,
                 user = user,
             expiresAt = Instant.parse("9999-12-31T23:59:59Z"),
-                deviceType = "admin-cli"
+                deviceType = Session.ADMIN_CLI_DEVICE_TYPE
             )
         )
         return jwtUtil.generateNonExpiringToken(username, "ADMIN", sessionToken)
+    }
+
+    private fun ensureAdminPermissions(role: Role) {
+        if (!permissionRepository.existsByRoleAndPermissionKey(role, "*")) {
+            permissionRepository.save(Permission(role = role, permissionKey = "*"))
+        }
     }
 
     private fun requireArguments(args: List<String>, command: String, count: Int) {

@@ -45,4 +45,4 @@ test-uploads/
 /keys/
 /data/
 /uploads/
-/.env
+.env

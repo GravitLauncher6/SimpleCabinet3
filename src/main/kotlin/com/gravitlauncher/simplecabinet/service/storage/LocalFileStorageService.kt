@@ -12,7 +12,7 @@ class LocalFileStorageService(
     private val storageProperties: StorageProperties
 ) : StorageService {
 
-    private val rootLocation: Path = Paths.get(storageProperties.local.path)
+    private val rootLocation: Path = Paths.get(storageProperties.local.path).toAbsolutePath().normalize()
 
     init {
         try {
@@ -33,9 +33,9 @@ class LocalFileStorageService(
                 throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot store file with relative path outside current directory")
             }
 
-            val destinationFile = rootLocation.resolve(Paths.get(filename)).normalize().toAbsolutePath()
+            val destinationFile = rootLocation.resolve(Paths.get(filename)).normalize()
             
-            if (!destinationFile.startsWith(rootLocation.toAbsolutePath())) {
+            if (!destinationFile.startsWith(rootLocation)) {
                 throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot store file outside of storage directory")
             }
 
@@ -55,7 +55,7 @@ class LocalFileStorageService(
 
     override fun exists(filename: String): Boolean {
         try {
-            val file = rootLocation.resolve(Paths.get(filename)).normalize().toAbsolutePath()
+            val file = rootLocation.resolve(Paths.get(filename)).normalize()
             return Files.exists(file) && Files.isRegularFile(file)
         } catch (e: Exception) {
             return false
@@ -78,8 +78,8 @@ class LocalFileStorageService(
         if (filename.contains("..")) {
             throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot access a relative path outside storage")
         }
-        val file = rootLocation.resolve(Paths.get(filename)).normalize().toAbsolutePath()
-        if (!file.startsWith(rootLocation.toAbsolutePath())) {
+        val file = rootLocation.resolve(Paths.get(filename)).normalize()
+        if (!file.startsWith(rootLocation)) {
             throw InvalidInputException(ErrorCode.INVALID_INPUT, "Cannot access a file outside storage")
         }
         return file

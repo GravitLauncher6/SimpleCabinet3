@@ -56,4 +56,8 @@ data class Session(
 
     @Column(name = "external_state", columnDefinition = "TEXT")
     var externalState: String? = null
-)
+) {
+    companion object {
+        const val ADMIN_CLI_DEVICE_TYPE = "admin-cli"
+    }
+}

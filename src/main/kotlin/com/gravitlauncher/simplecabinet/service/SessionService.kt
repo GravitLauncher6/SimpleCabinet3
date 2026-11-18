@@ -37,6 +37,7 @@ class SessionService(
     ): Session {
         // Clean up old sessions if max limit reached
         val activeSessions = sessionRepository.findActiveSessionsByUser(user, Instant.now())
+            .filter { it.deviceType != Session.ADMIN_CLI_DEVICE_TYPE }
         if (activeSessions.size >= maxSessionsPerUser) {
             // Revoke the oldest session
             val oldestSession = activeSessions.minByOrNull { it.createdAt }

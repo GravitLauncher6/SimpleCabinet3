@@ -20,7 +20,6 @@ WORKDIR /app
 COPY --from=build /workspace/build/libs/*.jar /app/app.jar
 COPY --chmod=755 scripts/simplecabinet /usr/local/bin/simplecabinet
 
-ENV SPRING_PROFILES_ACTIVE=container
 USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["simplecabinet"]
