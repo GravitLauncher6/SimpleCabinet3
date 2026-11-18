@@ -11,35 +11,35 @@ import java.time.Instant
 data class ArtifactBuild(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(nullable = false, length = 255)
-    val variant: String,
+    var variant: String,
 
     @Column(nullable = false, length = 1024)
-    val storageKey: String,
+    var storageKey: String,
 
     @Column(nullable = false, length = 2048)
-    val url: String,
+    var url: String,
 
     @Column(nullable = false, length = 255)
-    val originalFilename: String,
+    var originalFilename: String,
 
     @Column(nullable = false)
-    val sizeBytes: Long,
+    var sizeBytes: Long,
 
     @Column(name = "public_key", nullable = false, unique = true, length = 4096)
-    val publicKey: String,
+    var publicKey: String,
 
     @Column(name = "private_key", nullable = false, length = 4096)
-    val privateKey: String,
+    var privateKey: String,
 
     @Column(nullable = false)
-    val deprecated: Boolean = false,
+    var deprecated: Boolean = false,
 
     @Column(nullable = false)
-    val createdAt: Instant = Instant.now(),
+    var createdAt: Instant = Instant.now(),
 
     @Column(nullable = false)
-    val updatedAt: Instant = Instant.now()
+    var updatedAt: Instant = Instant.now()
 )

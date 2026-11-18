@@ -41,3 +41,8 @@ out/
 ### Kotlin ###
 .kotlin
 test-uploads/
+
+/keys/
+/data/
+/uploads/
+/.env

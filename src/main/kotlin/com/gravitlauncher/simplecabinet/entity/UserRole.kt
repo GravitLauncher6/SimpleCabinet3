@@ -20,19 +20,19 @@ import java.time.LocalDateTime
 data class UserRole(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    val user: User,
+    var user: User,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
-    val role: Role,
+    var role: Role,
 
     @Column(name = "assigned_at", nullable = false)
-    val assignedAt: LocalDateTime = LocalDateTime.now(),
+    var assignedAt: LocalDateTime = LocalDateTime.now(),
 
     @Column(name = "expires_at")
-    val expiresAt: LocalDateTime? = null
+    var expiresAt: LocalDateTime? = null
 )

@@ -1,0 +1,16 @@
+services:
+  simplecabinet:
+    build: .
+    ports:
+      - "${SIMPLECABINET_PORT:-8080}:8080"
+    environment:
+      - JWT_PRIVATE_KEY
+      - JWT_PUBLIC_KEY
+      - SPRING_DATASOURCE_URL
+      - SPRING_DATASOURCE_USERNAME
+      - SPRING_DATASOURCE_PASSWORD
+    volumes:
+      - simplecabinet-data:/app/data
+
+volumes:
+  simplecabinet-data:

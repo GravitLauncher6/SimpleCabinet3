@@ -17,44 +17,44 @@ import java.util.UUID
 data class User(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(unique = true, nullable = false, length = 100)
-    val username: String,
+    var username: String,
 
     @Column(unique = true, nullable = false, length = 255)
-    val email: String,
+    var email: String,
 
     @Column(name = "minecraft_profile_id", unique = true, nullable = false, length = 32)
-    val minecraftProfileId: String = UUID.randomUUID().toString().replace("-", ""),
+    var minecraftProfileId: String = UUID.randomUUID().toString().replace("-", ""),
 
     @Column(nullable = false)
-    val password: String,
+    var password: String,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    val userType: UserType = UserType.LOCAL,
+    var userType: UserType = UserType.LOCAL,
 
     @Column(name = "external_provider_id", length = 100)
-    val externalProviderId: String? = null,
+    var externalProviderId: String? = null,
 
     @Column(name = "external_subject", length = 255)
-    val externalSubject: String? = null,
+    var externalSubject: String? = null,
 
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val userRoles: MutableList<UserRole> = mutableListOf(),
+    var userRoles: MutableList<UserRole> = mutableListOf(),
 
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val assets: MutableList<UserAsset> = mutableListOf(),
+    var assets: MutableList<UserAsset> = mutableListOf(),
 
     @Column(nullable = false)
-    val enabled: Boolean = true,
+    var enabled: Boolean = true,
 
     @Column(nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: LocalDateTime = LocalDateTime.now(),
 
     @Column(nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = LocalDateTime.now()
 )
 
 enum class UserType {

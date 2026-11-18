@@ -11,27 +11,27 @@ import java.time.LocalDateTime
 data class Role(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(nullable = false, unique = true)
-    val name: String,
+    var name: String,
 
     @Column(length = 500)
-    val description: String? = null,
+    var description: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_role_id")
-    val parent: Role? = null,
+    var parent: Role? = null,
 
     @OneToMany(mappedBy = "role", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val permissions: MutableList<Permission> = mutableListOf(),
+    var permissions: MutableList<Permission> = mutableListOf(),
 
     @OneToMany(mappedBy = "role", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val userRoles: MutableList<UserRole> = mutableListOf(),
+    var userRoles: MutableList<UserRole> = mutableListOf(),
 
     @Column(nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: LocalDateTime = LocalDateTime.now(),
 
     @Column(nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = LocalDateTime.now()
 )

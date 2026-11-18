@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+    exec)
+        shift
+        if [ "$#" -eq 0 ]; then
+            echo "Usage: simplecabinet exec <command> [args...]" >&2
+            exit 2
+        fi
+        exec "$@"
+        ;;
+esac
+
+exec java -jar "${SIMPLECABINET_JAR:-/app/app.jar}" "$@"

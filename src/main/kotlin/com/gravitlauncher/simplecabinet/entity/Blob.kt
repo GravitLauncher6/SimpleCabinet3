@@ -10,20 +10,20 @@ import java.time.Instant
 data class Blob(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(nullable = false, unique = true, length = 128)
-    val hash: String,
+    var hash: String,
 
     @Column(nullable = false, length = 16)
-    val algorithm: String,
+    var algorithm: String,
 
     @Column(nullable = false)
-    val sizeBytes: Long,
+    var sizeBytes: Long,
 
     @Column(nullable = false, unique = true, length = 1024)
-    val storageKey: String,
+    var storageKey: String,
 
     @Column(nullable = false)
-    val createdAt: Instant = Instant.now()
+    var createdAt: Instant = Instant.now()
 )

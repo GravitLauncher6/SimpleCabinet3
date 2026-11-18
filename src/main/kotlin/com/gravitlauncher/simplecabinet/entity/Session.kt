@@ -12,47 +12,47 @@ import java.time.Instant
 data class Session(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(nullable = false, unique = true, length = 255)
-    val sessionToken: String,
+    var sessionToken: String,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    val user: User,
+    var user: User,
 
     @Column(nullable = false)
-    val createdAt: Instant = Instant.now(),
+    var createdAt: Instant = Instant.now(),
 
     @Column(nullable = false)
-    val expiresAt: Instant,
+    var expiresAt: Instant,
 
     @Column(nullable = false)
-    val lastAccessedAt: Instant = Instant.now(),
+    var lastAccessedAt: Instant = Instant.now(),
 
     @Column(length = 100)
-    val ipAddress: String? = null,
+    var ipAddress: String? = null,
 
     @Column(length = 255)
-    val userAgent: String? = null,
+    var userAgent: String? = null,
 
     @Column(length = 50)
-    val deviceType: String? = null,
+    var deviceType: String? = null,
 
     @Column(length = 255)
-    val serverId: String? = null,
+    var serverId: String? = null,
 
     @Column(nullable = false)
     var revoked: Boolean = false,
 
     @Column
-    val revokedAt: Instant? = null,
+    var revokedAt: Instant? = null,
 
     @Column(length = 255)
-    val revokedReason: String? = null,
+    var revokedReason: String? = null,
 
     @Column(name = "external_provider_id", length = 100)
-    val externalProviderId: String? = null,
+    var externalProviderId: String? = null,
 
     @Column(name = "external_state", columnDefinition = "TEXT")
     var externalState: String? = null

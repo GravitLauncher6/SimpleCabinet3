@@ -17,35 +17,35 @@ enum class UserAssetType {
 data class UserAsset(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(nullable = false, unique = true, length = 36)
-    val assetId: String = UUID.randomUUID().toString(),
+    var assetId: String = UUID.randomUUID().toString(),
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
-    val user: User,
+    var user: User,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "blob_id", nullable = false)
-    val blob: Blob,
+    var blob: Blob,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    val type: UserAssetType,
+    var type: UserAssetType,
 
     @Column(length = 16)
-    val variant: String? = null,
+    var variant: String? = null,
 
     @Column(length = 64)
-    val alias: String? = null,
+    var alias: String? = null,
 
     @Column(nullable = false)
-    val active: Boolean = true,
+    var active: Boolean = true,
 
     @Column(nullable = false)
-    val createdAt: Instant = Instant.now(),
+    var createdAt: Instant = Instant.now(),
 
     @Column(nullable = false)
-    val updatedAt: Instant = Instant.now()
+    var updatedAt: Instant = Instant.now()
 )

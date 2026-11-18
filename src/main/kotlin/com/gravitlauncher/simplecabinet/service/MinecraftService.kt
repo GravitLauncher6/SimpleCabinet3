@@ -15,11 +15,9 @@ import com.gravitlauncher.simplecabinet.exception.UnauthorizedException
 import com.gravitlauncher.simplecabinet.repository.BlobRepository
 import com.gravitlauncher.simplecabinet.repository.UserAssetRepository
 import com.gravitlauncher.simplecabinet.repository.UserRepository
-import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
+import com.gravitlauncher.simplecabinet.security.JwtSigningKeys
 import com.gravitlauncher.simplecabinet.security.JwtUtil
 import com.gravitlauncher.simplecabinet.service.storage.StorageService
-import jakarta.annotation.PostConstruct
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
@@ -30,8 +28,6 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.KeyPairGenerator
-import java.security.PrivateKey
-import java.security.PublicKey
 import java.security.Signature
 import java.security.interfaces.RSAPrivateCrtKey
 import java.security.interfaces.RSAPublicKey
@@ -50,23 +46,9 @@ class MinecraftService(
     private val blobRepository: BlobRepository,
     private val storageService: StorageService,
     private val jwtUtil: JwtUtil,
+    private val keys: JwtSigningKeys,
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
 ) {
-
-    @Value("\${jwt.private-key}")
-    private lateinit var privateKeyString: String
-
-    @Value("\${jwt.public-key}")
-    private lateinit var publicKeyString: String
-
-    private lateinit var signingPrivateKey: PrivateKey
-    private lateinit var signingPublicKey: PublicKey
-
-    @PostConstruct
-    fun initKeys() {
-        signingPrivateKey = EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
-        signingPublicKey = EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
-    }
 
     @Transactional(readOnly = true)
     fun getProfile(): MinecraftProfileResponse {
@@ -274,7 +256,7 @@ class MinecraftService(
     }
 
     fun getPublicKeys(): MinecraftPublicKeysResponse {
-        val key = Base64.getEncoder().encodeToString(signingPublicKey.encoded)
+        val key = Base64.getEncoder().encodeToString(keys.publicKey.encoded)
         return MinecraftPublicKeysResponse(
             profilePropertyKeys = listOf(key),
             playerCertificateKeys = listOf(key),
@@ -549,7 +531,7 @@ class MinecraftService(
 
     private fun sign(bytes: ByteArray): String {
         val signature = Signature.getInstance("SHA256withECDSA")
-        signature.initSign(signingPrivateKey)
+        signature.initSign(keys.privateKey)
         signature.update(bytes)
         return Base64.getEncoder().encodeToString(signature.sign())
     }

@@ -11,18 +11,17 @@ import com.gravitlauncher.simplecabinet.exception.ResourceNotFoundException
 import com.gravitlauncher.simplecabinet.exception.UnauthorizedException
 import com.gravitlauncher.simplecabinet.repository.ArtifactBuildRepository
 import com.gravitlauncher.simplecabinet.security.EcdsaKeyUtil
+import com.gravitlauncher.simplecabinet.security.JwtSigningKeys
 import com.gravitlauncher.simplecabinet.service.storage.StorageReferenceService
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
-import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
-import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.Signature
 import java.time.Instant
@@ -34,26 +33,12 @@ import java.util.UUID
 class ArtifactUpdateService(
     private val artifactBuildRepository: ArtifactBuildRepository,
     private val storageService: com.gravitlauncher.simplecabinet.service.storage.StorageService,
-    private val storageReferenceService: StorageReferenceService
+    private val storageReferenceService: StorageReferenceService,
+    private val keys: JwtSigningKeys
 ) {
-
-    @Value("\${jwt.private-key}")
-    private lateinit var privateKeyString: String
-
-    @Value("\${jwt.public-key}")
-    private lateinit var publicKeyString: String
 
     @Value("\${jwt.expiration}")
     private var expiration: Long = 86400000
-
-    private lateinit var privateKey: PrivateKey
-    private lateinit var publicKey: PublicKey
-
-    @PostConstruct
-    fun initKeys() {
-        privateKey = EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
-        publicKey = EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
-    }
 
     fun prepare(): ArtifactUpdatePrepareResponse {
         val challengeBytes = ByteArray(32)
@@ -65,7 +50,7 @@ class ArtifactUpdateService(
             .claim("challenge", challenge)
             .issuedAt(Date())
             .expiration(Date(System.currentTimeMillis() + expiration))
-            .signWith(privateKey)
+            .signWith(keys.privateKey)
             .compact()
 
         return ArtifactUpdatePrepareResponse(challenge = challenge, token = token)
@@ -104,7 +89,7 @@ class ArtifactUpdateService(
                     .claim("challenge", challenge)
                     .issuedAt(Date())
                     .expiration(Date(System.currentTimeMillis() + expiration))
-                    .signWith(privateKey)
+                    .signWith(keys.privateKey)
                     .compact()
             )
         }
@@ -117,7 +102,7 @@ class ArtifactUpdateService(
 
         val claims = try {
             Jwts.parser()
-                .verifyWith(publicKey)
+                .verifyWith(keys.publicKey)
                 .build()
                 .parseSignedClaims(token)
                 .payload
@@ -201,7 +186,7 @@ class ArtifactUpdateService(
 
     private fun parseAndValidatePrepareToken(token: String): Claims {
         val claims = Jwts.parser()
-            .verifyWith(publicKey)
+            .verifyWith(keys.publicKey)
             .build()
             .parseSignedClaims(token)
             .payload

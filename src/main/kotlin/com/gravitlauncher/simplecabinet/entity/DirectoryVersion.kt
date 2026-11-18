@@ -14,33 +14,33 @@ import java.time.Instant
 data class DirectoryVersion(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "directory_id", nullable = false)
-    val directory: CasDirectory,
+    var directory: CasDirectory,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_version_id")
-    val parentVersion: DirectoryVersion? = null,
+    var parentVersion: DirectoryVersion? = null,
 
     @Column(nullable = false, length = 128)
-    val manifestHash: String,
+    var manifestHash: String,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "json")
-    val manifest: String,
+    var manifest: String,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "json")
-    val metadata: String,
+    var metadata: String,
 
     @Column(nullable = false)
-    val createdAt: Instant = Instant.now(),
+    var createdAt: Instant = Instant.now(),
 
     @Column
-    val createdBy: Long? = null,
+    var createdBy: Long? = null,
 
     @Column(length = 1000)
-    val message: String? = null
+    var message: String? = null
 )

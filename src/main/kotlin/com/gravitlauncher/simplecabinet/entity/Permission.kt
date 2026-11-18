@@ -19,15 +19,15 @@ import jakarta.persistence.*
 data class Permission(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
-    val role: Role,
+    var role: Role,
 
     @Column(name = "permission_key", nullable = false)
-    val permissionKey: String,
+    var permissionKey: String,
 
     @Column(name = "permission_value", length = 1000)
-    val permissionValue: String? = null
+    var permissionValue: String? = null
 )

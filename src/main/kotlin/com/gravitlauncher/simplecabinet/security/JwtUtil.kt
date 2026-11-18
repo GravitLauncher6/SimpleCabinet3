@@ -2,42 +2,16 @@ package com.gravitlauncher.simplecabinet.security
 
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
-import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
-import java.security.PrivateKey
-import java.security.PublicKey
 import java.util.*
 
 @Component
-class JwtUtil {
-
-    @Value("\${jwt.private-key}")
-    private lateinit var privateKeyString: String
-
-    @Value("\${jwt.public-key}")
-    private lateinit var publicKeyString: String
+class JwtUtil(private val keys: JwtSigningKeys) {
 
     @Value("\${jwt.expiration}")
     private var expiration: Long = 86400000
-
-    private lateinit var privateKey: PrivateKey
-    private lateinit var publicKey: PublicKey
-
-    @PostConstruct
-    fun initKeys() {
-        privateKey = EcdsaKeyUtil.loadPrivateKeyFromString(privateKeyString)
-        publicKey = EcdsaKeyUtil.loadPublicKeyFromString(publicKeyString)
-    }
-
-    private fun getPrivateKey(): PrivateKey {
-        return privateKey
-    }
-
-    private fun getPublicKey(): PublicKey {
-        return publicKey
-    }
 
     fun generateToken(username: String, role: String, sessionToken: String): String {
         val claims = HashMap<String, Any>()
@@ -49,11 +23,12 @@ class JwtUtil {
             .subject(username)
             .issuedAt(Date())
             .expiration(Date(System.currentTimeMillis() + expiration))
-            .signWith(getPrivateKey())
+            .signWith(keys.privateKey)
             .compact()
     }
 
     fun generateNonExpiringToken(username: String, role: String, sessionToken: String): String {
+        check(keys.persistentKeys) { "Configure a persistent JWT key pair before creating an admin token" }
         val claims = hashMapOf<String, Any>(
             "role" to role,
             "sessionId" to sessionToken
@@ -63,7 +38,7 @@ class JwtUtil {
             .claims(claims)
             .subject(username)
             .issuedAt(Date())
-            .signWith(getPrivateKey())
+            .signWith(keys.privateKey)
             .compact()
     }
 
@@ -92,7 +67,7 @@ class JwtUtil {
 
     private fun extractAllClaims(token: String): Claims {
         return Jwts.parser()
-            .verifyWith(getPublicKey())
+            .verifyWith(keys.publicKey)
             .build()
             .parseSignedClaims(token)
             .payload

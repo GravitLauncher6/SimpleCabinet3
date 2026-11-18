@@ -5,3 +5,14 @@
 **/.idea
 **/.vscode
 test-uploads
+.kotlin
+**/.env
+**/.env.*
+keys
+data
+uploads
+*.pem
+.aws
+.agents
+.codex
+ai

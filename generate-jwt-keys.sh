@@ -1,43 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# ECDSA Key Generation Script for SimpleCabinet JWT
-# This script generates ECDSA key pairs for JWT token signing
+if (( $# > 1 )); then
+    printf 'Usage: %s [new-key-directory]\n' "$0" >&2
+    exit 2
+fi
 
-echo "Generating ECDSA key pair for JWT..."
-echo ""
+output=${1:-keys}
+umask 077
+mkdir -- "$output"
+trap 'rm -f -- "$output/private-key" "$output/public-key"; rmdir -- "$output"' EXIT
+trap 'exit 1' HUP INT TERM
 
-# Create keys directory
-mkdir -p keys
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:prime256v1 |
+    openssl pkcs8 -topk8 -nocrypt -outform DER |
+    openssl base64 -A > "$output/private-key"
 
-# Generate private key (ECDSA P-256)
-openssl ecparam -name prime256v1 -genkey -noout -out keys/private_key.pem
+openssl base64 -d -A -in "$output/private-key" |
+    openssl pkey -inform DER -pubout -outform DER |
+    openssl base64 -A > "$output/public-key"
 
-# Generate public key from private key
-openssl ec -in keys/private_key.pem -pubout -out keys/public_key.pem
-
-# Convert private key to PKCS8 format and Base64 encode
-PRIVATE_KEY_BASE64=$(openssl pkcs8 -topk8 -nocrypt -in keys/private_key.pem -outform DER | base64 -w 0)
-
-# Convert public key to DER format and Base64 encode
-PUBLIC_KEY_BASE64=$(openssl ec -in keys/private_key.pem -pubout -outform DER | base64 -w 0)
-
-echo "✓ Keys generated successfully!"
-echo ""
-echo "Keys saved to:"
-echo "  - keys/private_key.pem"
-echo "  - keys/public_key.pem"
-echo ""
-echo "===================================================================================="
-echo "Add the following to your application.yaml:"
-echo "===================================================================================="
-echo ""
-echo "jwt:"
-echo "  private-key: $PRIVATE_KEY_BASE64"
-echo "  public-key: $PUBLIC_KEY_BASE64"
-echo "  expiration: 86400000"
-echo "  session-expiration: 604800000"
-echo ""
-echo "===================================================================================="
-echo ""
-echo "⚠️  IMPORTANT: Keep the private key secure and never commit it to version control!"
-echo ""
+trap - EXIT HUP INT TERM
+printf 'Generated JWT keys in %s\n' "$output"
+printf 'Configure JWT_PRIVATE_KEY_FILE and JWT_PUBLIC_KEY_FILE with the paths to private-key and public-key.\n'

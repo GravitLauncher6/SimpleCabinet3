@@ -8,17 +8,17 @@ import java.time.Instant
 data class CasDirectory(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
     @Column(name = "directory_key", nullable = false, unique = true, length = 255)
-    val key: String,
+    var key: String,
 
     @Column(length = 255)
-    val name: String? = null,
+    var name: String? = null,
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    val metadata: String = "{}",
+    var metadata: String = "{}",
 
     @Column(nullable = false)
-    val createdAt: Instant = Instant.now()
+    var createdAt: Instant = Instant.now()
 )
